@@ -1,0 +1,38 @@
+Source: ti-tidl
+Section: libs
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://git.ti.com/git/processor-sdk-vision/arm-tidl.git
+
+Package: ti-tidl
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libgcc-s1,
+ libstdc++6,
+ ti-vision-apps,
+ libti-rpmsg-char0
+Description: TI TIDL Delegate Libraries (arm-tidl)
+ Source-built TIDL inference delegate shared libraries for TI EdgeAI
+ platforms. Built from the arm-tidl repository matching the ti-tidl Yocto
+ recipe in meta-edgeai.
+ .
+ Provides:
+  libvx_tidl_rt.so.1.0       — TIDL OpenVX runtime
+  libtidl_tfl_delegate.so.1.0 — TFLite delegate
+  libtidl_onnxrt_EP.so.1.0   — ONNX Runtime execution provider
+  libtidlrt_EP.so.1.0         — TIDL RT execution provider
+ .
+ Also installs a test binary at /opt/tidl_test/.
+ .
+ Compatible with: j721e, j721s2, j784s4, j742s2, j722s, am62axx.
+
+Package: ti-tidl-dev
+Architecture: arm64
+Depends: ${misc:Depends}, ti-tidl (= ${binary:Version})
+Description: TI TIDL Delegate Libraries - development headers
+ C++ headers for building against the arm-tidl TIDL delegate libraries.
+ .
+ Headers: itidl_rt.h, itidl_io.h, itvm_rt.h.

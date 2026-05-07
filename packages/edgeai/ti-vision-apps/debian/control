@@ -1,0 +1,41 @@
+Source: ti-vision-apps
+Section: libs
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://git.ti.com/git/edgeai/meta-edgeai.git
+
+Package: libtivision-apps11.2.0
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libgcc-s1,
+ libstdc++6,
+ libegl1,
+ libgbm1,
+ libgles2,
+ libti-rpmsg-char0
+Description: TI OpenVX Middleware Library
+ libtivision_apps is the TI Vision Apps shared library providing OpenVX
+ middleware functions for TI K3 SoCs (J721E, J784S4, J722S, J742S2, AM62A).
+ It integrates TI's TIOVX OpenVX implementation with hardware accelerators
+ including C7x DSP, MMA, VPAC, and DMPAC.
+ .
+ Compatible with: j721e, j721s2, j784s4, j742s2, j722s, am62axx.
+
+Package: libtivision-apps-dev
+Architecture: arm64
+Depends: ${misc:Depends}, libtivision-apps11.2.0 (= ${binary:Version})
+Description: TI OpenVX Middleware Library - development files
+ C++ headers for building against libtivision_apps. Includes the full
+ processor_sdk header tree: vision_apps, tiovx, app_utils, imaging,
+ video_io, vxlib, tiadalg, tidl_j7, and ti-perception-toolkit.
+
+Package: ti-vision-apps-data
+Architecture: arm64
+Depends: ${misc:Depends}, libtivision-apps11.2.0 (= ${binary:Version})
+Description: TI Vision Apps - runtime data and demo applications
+ Sensor DCC calibration binaries for ISP (ar0233, ar0820, imx219, imx390,
+ imx728) and demonstration application binaries for TI EdgeAI/ADAS EVMs.
+ Includes vision_apps_init.sh and vx_app_* test/demo executables.

@@ -1,0 +1,37 @@
+#!/usr/bin/make -f
+# debian/rules for ti-rpmsg-char
+# All artifacts are prebuilt; this rule installs from the prepared staging area.
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Nothing to configure — prebuilt binaries only
+
+override_dh_auto_build:
+	# Nothing to build — prebuilt binaries only
+
+override_dh_auto_install:
+	# Runtime package: shared library (versioned .so only; symlinks added below)
+	install -d debian/libti-rpmsg-char0/usr/lib
+	cp -a staging/runtime/usr/lib/libti_rpmsg_char.so.* \
+	    debian/libti-rpmsg-char0/usr/lib/
+
+	# Dev package: unversioned symlink + headers
+	install -d debian/libti-rpmsg-char-dev/usr/lib
+	install -d debian/libti-rpmsg-char-dev/usr/include
+	# Create unversioned symlink for -dev
+	ln -sf libti_rpmsg_char.so.0 \
+	    debian/libti-rpmsg-char-dev/usr/lib/libti_rpmsg_char.so
+	# Headers (if dev IPK has them)
+	if [ -d staging/dev/usr/include ]; then \
+	    cp -a staging/dev/usr/include/. debian/libti-rpmsg-char-dev/usr/include/; \
+	fi
+
+override_dh_strip:
+	# Prebuilt binaries — do not strip
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:
+	# Skip shlibdeps: prebuilt arm64 binaries on x86_64 host.
+	# Runtime deps declared explicitly in debian/control.

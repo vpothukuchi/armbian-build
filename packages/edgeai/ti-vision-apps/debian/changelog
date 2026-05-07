@@ -1,0 +1,7 @@
+ti-vision-apps (11.02.03-1) noble; urgency=medium
+
+  * Initial packaging of TI Vision Apps v11.02.03
+    from TI PSDK Analytics 11.02.00 Yocto build artifacts.
+    Source recipe: meta-edgeai/recipes-vision/ti-vision-apps/ti-vision-apps.bb
+
+ -- Vijay Pothukuchi <vijayp@ti.com>  Wed, 07 May 2025 00:00:00 +0000

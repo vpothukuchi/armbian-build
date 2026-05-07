@@ -1,0 +1,9 @@
+staging/
+staging-src/
+*.log
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/libtivision-apps*/
+debian/ti-vision-apps*/
+debian/*.substvars

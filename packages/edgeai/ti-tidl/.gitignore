@@ -1,0 +1,8 @@
+src/
+staging/
+build-from-source.log
+debian/ti-tidl/
+debian/ti-tidl-dev/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars

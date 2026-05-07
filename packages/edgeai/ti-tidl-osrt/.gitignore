@@ -1,0 +1,10 @@
+build/
+downloads/
+staging/
+*.log
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/ti-tidl-osrt/
+debian/ti-tidl-osrt-dev/
+debian/*.substvars

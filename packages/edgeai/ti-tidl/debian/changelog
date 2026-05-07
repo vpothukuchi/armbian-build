@@ -1,0 +1,9 @@
+ti-tidl (1.0.0-1) noble; urgency=medium
+
+  * Initial packaging of TI TIDL arm-tidl delegate libraries.
+    Built from source matching ti-tidl.bb in meta-edgeai for PSDK Analytics
+    11.02.x. SRCREVs pinned to 81fefa6 (arm-tidl), f5541b8 (concerto),
+    5816ccce (onnxruntime TI fork), 422156a (tensorflow TI fork),
+    f0dc78d (protobuf).
+
+ -- Vijay Pothukuchi <vijayp@ti.com>  Wed, 07 May 2025 00:00:00 +0000

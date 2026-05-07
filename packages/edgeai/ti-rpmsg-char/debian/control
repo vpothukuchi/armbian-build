@@ -1,0 +1,23 @@
+Source: ti-rpmsg-char
+Section: libs
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://git.ti.com/git/rpmsg/ti-rpmsg-char.git
+
+Package: libti-rpmsg-char0
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6
+Description: TI RPMsg Character Device Library
+ User space library for communicating with remote processors via the
+ RPMsg framework on TI K3 SoCs (J721E, J784S4, J722S, AM62A, etc.).
+ Provides the libti_rpmsg_char.so.0 shared library.
+
+Package: libti-rpmsg-char-dev
+Architecture: arm64
+Depends: ${misc:Depends}, libti-rpmsg-char0 (= ${binary:Version})
+Description: TI RPMsg Character Device Library - development files
+ Development headers and symlinks for building against libti_rpmsg_char.
+ Includes ti_rpmsg_char.h and the unversioned libti_rpmsg_char.so symlink.

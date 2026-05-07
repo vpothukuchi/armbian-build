@@ -1,0 +1,37 @@
+Source: ti-tidl-osrt
+Section: libs
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13), unzip
+Standards-Version: 4.6.2
+Homepage: https://software-dl.ti.com/jacinto7/esd/tidl-tools/
+
+Package: ti-tidl-osrt
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libgcc-s1,
+ libstdc++6,
+ python3,
+ python3-decorator,
+ python3-attrs
+Description: TI Open Source DL/ML Runtime Modules
+ Prebuilt Open Source Runtime (OSRT) modules for TI EdgeAI platforms.
+ Includes TFLite Runtime 2.12, ONNX Runtime 1.15 (TIDL), Apache TVM 0.18,
+ and TIDL Runtime 0.1. Supports both Python and C++ APIs.
+ .
+ Python packages installed: tflite_runtime, onnxruntime_tidl, tvm, tidlruntime.
+ Shared libraries: libonnxruntime.so, libtvm.so, libtvm_runtime.so.
+ .
+ Compatible with: j721e, j721s2, j784s4, j722s, j742s2, am62axx.
+
+Package: ti-tidl-osrt-dev
+Architecture: arm64
+Depends: ${misc:Depends}, ti-tidl-osrt (= ${binary:Version})
+Description: TI Open Source DL/ML Runtime - development files
+ C++ headers and static libraries for building against the TI OSRT stack.
+ Includes TFLite 2.12, ONNX Runtime 1.15, TVM 0.18, and TIDL Runtime
+ headers and static libraries.
+ .
+ Static libraries: libtensorflow-lite.a, libtidlruntime.a.
+ Headers: tensorflow/, onnxruntime/, tidlruntime/, tvm/.

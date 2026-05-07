@@ -1,0 +1,10 @@
+src/
+staging/
+staging-src/
+*.log
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/libti-rpmsg-char0/
+debian/libti-rpmsg-char-dev/
+debian/*.substvars

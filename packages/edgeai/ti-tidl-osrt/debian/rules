@@ -1,0 +1,34 @@
+#!/usr/bin/make -f
+# debian/rules for ti-tidl-osrt
+# All artifacts are prebuilt; this rule just installs from the prepared staging area.
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Nothing to configure — prebuilt binaries only
+
+override_dh_auto_build:
+	# Nothing to build — prebuilt binaries only
+
+override_dh_auto_install:
+	# Main runtime package
+	install -d debian/ti-tidl-osrt/usr/lib/python3/dist-packages
+	install -d debian/ti-tidl-osrt/usr/lib
+	cp -a staging/python/* debian/ti-tidl-osrt/usr/lib/python3/dist-packages/
+	cp -a staging/lib/*.so* debian/ti-tidl-osrt/usr/lib/ 2>/dev/null || true
+
+	# Dev package: headers + static libs
+	install -d debian/ti-tidl-osrt-dev/usr/include
+	install -d debian/ti-tidl-osrt-dev/usr/lib
+	cp -a staging/include/* debian/ti-tidl-osrt-dev/usr/include/
+	cp -a staging/lib/*.a   debian/ti-tidl-osrt-dev/usr/lib/ 2>/dev/null || true
+	cp -a staging/lib/tflite_2.12 debian/ti-tidl-osrt-dev/usr/lib/ 2>/dev/null || true
+
+override_dh_strip:
+	# Prebuilt binaries — do not strip (they are already stripped or signed)
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:
+	# Skip shlibdeps: prebuilt arm64 binaries built on x86_64 host.
+	# Runtime deps are declared explicitly in debian/control.

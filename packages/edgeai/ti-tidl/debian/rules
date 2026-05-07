@@ -1,0 +1,37 @@
+#!/usr/bin/make -f
+# debian/rules for ti-tidl
+# Source-built arm-tidl delegates; install from prepared staging/ area.
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Nothing to configure — build driven by build-from-source.sh
+
+override_dh_auto_build:
+	# Nothing to build — build-from-source.sh ran before dpkg-buildpackage
+
+override_dh_auto_install:
+	# Runtime package: shared libraries
+	install -d debian/ti-tidl/usr/lib
+	cp -a staging/lib/*.so.* debian/ti-tidl/usr/lib/
+	cp -a staging/lib/*.so   debian/ti-tidl/usr/lib/ 2>/dev/null || true
+
+	# Test binary
+	if [ -f staging/opt/tidl_test/TI_DEVICE_armv8_test_dl_algo_host_rt.out ]; then \
+	    install -d debian/ti-tidl/opt/tidl_test; \
+	    cp staging/opt/tidl_test/TI_DEVICE_armv8_test_dl_algo_host_rt.out \
+	        debian/ti-tidl/opt/tidl_test/; \
+	fi
+
+	# Dev package: public headers
+	install -d debian/ti-tidl-dev/usr/include
+	cp -a staging/include/*.h debian/ti-tidl-dev/usr/include/
+
+override_dh_strip:
+	# Cross-compiled arm64 binaries — do not strip on x86_64 host
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:
+	# Skip shlibdeps: cross-compiled arm64 binaries on x86_64 host.
+	# Runtime deps declared explicitly in debian/control.

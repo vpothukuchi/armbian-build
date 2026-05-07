@@ -1,0 +1,43 @@
+#!/usr/bin/make -f
+# debian/rules for ti-vision-apps
+# All artifacts are prebuilt; this rule installs from the prepared staging area.
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Nothing to configure — prebuilt binaries only
+
+override_dh_auto_build:
+	# Nothing to build — prebuilt binaries only
+
+override_dh_auto_install:
+	# --- libtivision-apps11.2.0: shared library ---
+	install -d debian/libtivision-apps11.2.0/usr/lib
+	cp staging/runtime/usr/lib/libtivision_apps.so.11.2.0 \
+	    debian/libtivision-apps11.2.0/usr/lib/
+
+	# --- libtivision-apps-dev: unversioned symlink + headers ---
+	install -d debian/libtivision-apps-dev/usr/lib
+	install -d debian/libtivision-apps-dev/usr/include
+	ln -sf libtivision_apps.so.11.2.0 \
+	    debian/libtivision-apps-dev/usr/lib/libtivision_apps.so
+	cp -a staging/dev/usr/include/. debian/libtivision-apps-dev/usr/include/
+
+	# --- ti-vision-apps-data: opt/imaging DCC bins + opt/vision_apps ---
+	install -d debian/ti-vision-apps-data/opt
+	cp -a staging/runtime/opt/imaging debian/ti-vision-apps-data/opt/
+	cp -a staging/runtime/opt/vision_apps debian/ti-vision-apps-data/opt/
+	# The standalone vx_app_arm_remote_log.out at /opt/
+	if [ -f staging/runtime/opt/vx_app_arm_remote_log.out ]; then \
+	    install -m 755 staging/runtime/opt/vx_app_arm_remote_log.out \
+	        debian/ti-vision-apps-data/opt/; \
+	fi
+
+override_dh_strip:
+	# Prebuilt binaries — do not strip (already stripped by Yocto)
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:
+	# Skip shlibdeps: prebuilt arm64 binaries on x86_64 host.
+	# Runtime deps declared explicitly in debian/control.
