@@ -3,156 +3,226 @@
 This document covers how to build the TI EdgeAI `.deb` packages and integrate
 them into an Armbian image for the j784s4-evm (and compatible) boards.
 
-There are two independent pipelines:
+## Build sequence
 
 ```
-Pipeline A: EdgeAI packages
-  packages/edgeai/ → .deb files
-
-Pipeline B: Armbian base image
-  compile.sh → rootfs / SD card image
-
-Integration: copy .deb files into output/debs/extra/ before running compile.sh
+B1  Armbian base image   — compile.sh (kernel, u-boot, firmware only)
+A1  ti-rpmsg-char        — autotools source build         ─┐
+    ti-tidl-osrt         — TFLite + ONNX RT source build   │ EdgeAI packages
+A2  ti-vision-apps       — SDK source build (needs A1)     │ (no dependency
+A3  ti-tidl              — arm-tidl delegates (needs A1+A2)─┘  on B1)
+B2  Final Armbian image  — compile.sh + ENABLE_EXTENSIONS=ti-debpkgs
 ```
+
+B1 and A1/A2/A3 have no dependency on each other. B1 runs first because it
+is the longest step (~60 min). A1→A2→A3 must be sequential (each overlays
+the previous phase's `.deb` files into the build sysroot before compiling).
+B2 consumes all outputs: the B1 kernel/u-boot and all nine EdgeAI `.deb` files.
+
+The top-level orchestration script is `/mnt/DATA/UBUNTU/build_armbian.sh`.
 
 ---
 
-## Pipeline A: Build EdgeAI Packages
+## Produced packages
 
-### Docker (preferred — no host dependencies beyond Docker)
+| Package | Phase | Description |
+|---------|-------|-------------|
+| `libti-rpmsg-char0_0.6.10-1_arm64.deb` | A1 | RPMsg char runtime library |
+| `libti-rpmsg-char-dev_0.6.10-1_arm64.deb` | A1 | RPMsg char headers + link stubs |
+| `ti-tidl-osrt_11.02.04.00-1_arm64.deb` | A1 | TFLite 2.12, ONNX RT 1.15, TVM 0.18, TIDL RT |
+| `ti-tidl-osrt-dev_11.02.04.00-1_arm64.deb` | A1 | OSRT headers + static libs |
+| `libtivision-apps11.2.0_11.02.03-1_arm64.deb` | A2 | vision_apps shared library |
+| `libtivision-apps-dev_11.02.03-1_arm64.deb` | A2 | vision_apps headers |
+| `ti-vision-apps-data_11.02.03-1_arm64.deb` | A2 | Demo binaries + data files |
+| `ti-tidl_1.0.0-1_arm64.deb` | A3 | TIDL delegate .so libraries |
+| `ti-tidl-dev_1.0.0-1_arm64.deb` | A3 | TIDL delegate headers |
+
+---
+
+## Full orchestrated build (recommended)
+
+Use `build_armbian.sh` from the `armbian-build` directory. It handles the
+full sequence, proxy setup, and staging automatically.
+
+```bash
+cd /mnt/DATA/UBUNTU/armbian-build
+
+# Full build with local git mirror and SDK path:
+bash /mnt/DATA/UBUNTU/build_armbian.sh \
+    --mirror   /mnt/DATA/YOCTO/yocto-build/downloads/git2 \
+    --sdk-path /opt/ti-vision-apps-sdk
+
+# Skip B1 (kernel already built), rebuild EdgeAI packages + final image:
+bash /mnt/DATA/UBUNTU/build_armbian.sh --skip-kernel \
+    --mirror   /mnt/DATA/YOCTO/yocto-build/downloads/git2 \
+    --sdk-path /opt/ti-vision-apps-sdk
+
+# All debs already built — just regenerate the final image:
+bash /mnt/DATA/UBUNTU/build_armbian.sh --skip-kernel --skip-edgeai
+
+# EdgeAI packages only (no Armbian builds at all):
+bash /mnt/DATA/UBUNTU/build_armbian.sh --skip-kernel --skip-image \
+    --sdk-path /opt/ti-vision-apps-sdk
+```
+
+### build_armbian.sh options
+
+| Option | Effect |
+|--------|--------|
+| `--skip-kernel` | Skip Armbian base image build |
+| `--skip-edgeai` | Skip all EdgeAI package builds (A1+A2+A3) |
+| `--skip-base-pkgs` | Skip ti-rpmsg-char + ti-tidl-osrt only |
+| `--skip-vision-apps` | Skip ti-vision-apps only |
+| `--skip-tidl` | Skip ti-tidl only |
+| `--skip-image` | Skip final Armbian image build |
+| `--skip-proxy` | Skip TI proxy setup (outside TI network) |
+| `--mirror <path>` | Local Yocto git2/ mirror (faster, offline-capable) |
+| `--sdk-path <path>` | Local workspace dir for the ti-vision-apps SDK source repos. **Do not clone anything manually** — the build system runs `repo init` + `repo sync` into this directory on the first run (~15 min, ~2 GB). On subsequent runs the existing workspace is reused. Provide an empty directory, or the path from a previous build. |
+| `--ipk-dir <path>` | Prebuilt Yocto IPK dir for ti-vision-apps (Docker only) |
+| `--clean` | Remove all generated build artifacts, then exit |
+| `--clean-downloads` | (with `--clean`) also delete the ti-tidl-osrt download cache |
+| `--no-cache` | Force rebuild of the EdgeAI Docker image |
+
+---
+
+## Building individual packages with docker-build.sh
+
+`docker-build.sh` is the lower-level script that builds one package at a time
+inside the `ti-edgeai-build` Docker container. The Docker image is built
+automatically on first run.
 
 ```bash
 cd packages/edgeai
 
-# Build one package:
-./docker-build.sh ti-tidl-osrt      # TFLite 2.12 + ONNX RT 1.15 (source build)
-./docker-build.sh ti-rpmsg-char     # RPMsg char userspace library
+# A1 — no extra inputs needed (fetches from git.ti.com / GitHub / TI CDN)
+./docker-build.sh ti-rpmsg-char
+./docker-build.sh ti-tidl-osrt
 
-# Build all (skips ti-tidl and ti-vision-apps if their deps are not provided):
-./docker-build.sh all
-```
-
-The Docker image is built automatically on first run from `docker/Dockerfile`.
-To force a rebuild of the image:
-
-```bash
-./docker-build.sh --no-cache ti-tidl-osrt
-```
-
-Output `.deb` files land in `packages/edgeai/`:
-
-```
-packages/edgeai/
-├── ti-tidl-osrt_11.02.04.00-1_arm64.deb
-├── ti-tidl-osrt-dev_11.02.04.00-1_arm64.deb
-├── libti-rpmsg-char0_0.6.10-1_arm64.deb
-└── libti-rpmsg-char-dev_0.6.10-1_arm64.deb
-```
-
-#### Packages that need extra inputs
-
-| Package | Extra inputs | Flag |
-|---------|-------------|------|
-| `ti-tidl-osrt` | None — sources from GitHub, tvm/tidlruntime from TI CDN | — |
-| `ti-rpmsg-char` | None — sources from git.ti.com | — |
-| `ti-tidl` | aarch64 sysroot with ti-vision-apps headers | `--sysroot <path>` |
-| `ti-vision-apps` | SDK source tree (via `repo sync`) | `--sdk-path <path>` |
-| `ti-vision-apps` (prebuilt) | Yocto-built IPK files | `--prebuilt --ipk-dir <path>` |
-
-#### Offline / faster builds with a local git mirror
-
-If you have a local git mirror directory (e.g. from a Yocto downloads cache):
-
-```bash
+# A1 with local git mirror (faster, offline-capable)
+./docker-build.sh --mirror /path/to/git-mirrors ti-rpmsg-char
 ./docker-build.sh --mirror /path/to/git-mirrors ti-tidl-osrt
+
+# A2 — provide an empty dir; build system runs repo init+sync there on first run
+#       (~15 min, ~2 GB); on subsequent runs the existing workspace is reused.
+#       Do NOT clone repos manually.
+./docker-build.sh --sdk-path /opt/ti-vision-apps-sdk ti-vision-apps
+
+# A2 using prebuilt Yocto IPKs instead of source build
+./docker-build.sh --prebuilt --ipk-dir /path/to/ipk ti-vision-apps
+
+# A3 — uses Docker-internal /opt/arm64-sysroot; overlays A1+A2 debs automatically
+./docker-build.sh ti-tidl
+
+# Build all in one shot (A1 → A2 → A3)
+./docker-build.sh --sdk-path /opt/ti-vision-apps-sdk all
+
+# Force Docker image rebuild
+./docker-build.sh --no-cache ti-rpmsg-char
 ```
 
-The mirror directory should contain bare repos named:
-- `github.com.TexasInstruments.tensorflow`
-- `github.com.TexasInstruments.onnxruntime`
+### What docker-build.sh does between phases
+
+Before A2 runs inside the container, `docker-build.sh` automatically extracts
+the A1 `.deb` files into the container's `/opt/arm64-sysroot` so that
+`ti_rpmsg_char.h` is visible to the vision_apps build system. Before A3, it
+similarly extracts all A1+A2 `.deb` files. This is our equivalent of Yocto's
+`do_populate_sysroot` mechanism.
+
+### Git mirror directory
+
+Pass `--mirror` to speed up builds or enable offline operation. The directory
+should contain Yocto-style bare-clone repos:
+
+| Package | Mirror basename |
+|---------|----------------|
+| ti-rpmsg-char | `git.ti.com.git.rpmsg.ti-rpmsg-char.git` |
+| ti-tidl-osrt | `github.com.TexasInstruments.tensorflow` |
+| ti-tidl-osrt | `github.com.TexasInstruments.onnxruntime` |
+| ti-tidl | `git.ti.com.git.processor-sdk-vision.arm-tidl.git` |
+| ti-tidl | `git.ti.com.git.processor-sdk.concerto.git` |
+| ti-tidl | `github.com.TexasInstruments.onnxruntime` |
+| ti-tidl | `github.com.TexasInstruments.tensorflow` |
+| ti-tidl | `github.com.protocolbuffers.protobuf.git` |
 
 ---
 
-### Native (without Docker)
+## Building the Armbian image (compile.sh)
 
-Only use this if Docker is not available.
-
-#### One-time host setup
+### B1 — Base image (kernel + u-boot, no EdgeAI packages)
 
 ```bash
-sudo dpkg --add-architecture arm64
-sudo apt install \
-  gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-  cmake ninja-build wget unzip git \
-  python3-dev python3-dev:arm64 \
-  python3-pybind11 python3-numpy python3-pip \
-  debhelper devscripts
-
-pip3 install --user wheel setuptools flatbuffers
+cd /mnt/DATA/UBUNTU/armbian-build
+./compile.sh build \
+    BOARD=j784s4-evm \
+    BRANCH=vendor \
+    BUILD_MINIMAL=yes \
+    KERNEL_CONFIGURE=no \
+    RELEASE=noble \
+    GIT_SKIP_SUBMODULES=yes \
+    SKIP_ARMBIAN_REPO=yes \
+    SHARE_LOG=yes
 ```
 
-#### Build
+### B2 — Final image with all EdgeAI packages installed
 
-```bash
-cd packages/edgeai/ti-tidl-osrt
-./build-from-source.sh
-```
-
----
-
-## Pipeline B: Build Armbian Base Image
-
-```bash
-cd <armbian-build>
-./compile.sh \
-  BOARD=j784s4-evm \
-  BRANCH=vendor \
-  RELEASE=noble \
-  BUILD_MINIMAL=no
-```
-
-This produces a rootfs and SD card image in `output/images/`.
-
----
-
-## Integration: Getting EdgeAI Packages into the Image
-
-Copy the built `.deb` files into Armbian's extra debs directory before
-running `compile.sh`. Armbian automatically installs all `.deb` files found
-there during rootfs creation:
+Stage the built `.deb` files first, then add `ENABLE_EXTENSIONS=ti-debpkgs`:
 
 ```bash
 mkdir -p output/debs/extra
 cp packages/edgeai/*.deb output/debs/extra/
 
-./compile.sh BOARD=j784s4-evm BRANCH=vendor RELEASE=noble BUILD_MINIMAL=no
+./compile.sh build \
+    BOARD=j784s4-evm \
+    BRANCH=vendor \
+    BUILD_MINIMAL=yes \
+    KERNEL_CONFIGURE=no \
+    RELEASE=noble \
+    GIT_SKIP_SUBMODULES=yes \
+    SKIP_ARMBIAN_REPO=yes \
+    SHARE_LOG=yes \
+    ENABLE_EXTENSIONS=ti-debpkgs
+```
+
+The `ti-debpkgs` extension (`extensions/ti-debpkgs.sh`) installs all nine
+`.deb` files into the arm64 chroot via `apt-get install` during rootfs
+creation, which resolves cross-package dependencies automatically.
+
+---
+
+## Incremental builds
+
+The B and A pipelines are independent until B2. Only rebuild what changed:
+
+| What changed | What to rebuild |
+|---|---|
+| Kernel config, u-boot, board patches | B1 only (then B2) |
+| ti-rpmsg-char source | `--skip-kernel --skip-vision-apps --skip-tidl` then B2 |
+| ti-tidl-osrt source or patches | `--skip-kernel --skip-vision-apps --skip-tidl` then B2 |
+| ti-vision-apps source | `--skip-kernel --skip-base-pkgs` (A2+A3+B2) |
+| ti-tidl source | `--skip-kernel --skip-base-pkgs --skip-vision-apps` (A3+B2) |
+| Only Debian packaging metadata | Rebuild the affected package only, then B2 |
+| Everything | Full build (no skip flags) |
+
+Within each `build-from-source.sh`, use `--skip-build` to repackage without
+recompiling (e.g. after changing `debian/control` or install rules):
+
+```bash
+cd packages/edgeai/ti-tidl-osrt
+./build-from-source.sh --skip-source-build --skip-download
 ```
 
 ---
 
-## Incremental Builds
+## Native build (without Docker)
 
-The two pipelines are independent. Only rebuild what changed:
+> **Not tested end-to-end. Use Docker for production builds.**
 
-| What changed | What to rebuild |
-|---|---|
-| TFLite / ONNX RT source or patches | `./docker-build.sh ti-tidl-osrt` only |
-| Board config, kernel, or Armbian patches | `./compile.sh ...` only |
-| EdgeAI packages AND Armbian config | Both, in either order |
-| Only packaging / debian metadata | `./docker-build.sh ti-tidl-osrt` only |
-
-Within `build-from-source.sh`, two flags allow partial rebuilds:
+See the prerequisites section at the top of `build_armbian.sh` for the
+complete list of host packages, OE compat shim setup, and arm64 sysroot
+creation steps. Once prerequisites are met, invoke:
 
 ```bash
-# Skip source compilation; re-stage and repackage only:
-./build-from-source.sh --skip-source-build
-
-# Skip CDN downloads; use existing downloads/:
-./build-from-source.sh --skip-download
-
-# Both — fastest repackage cycle:
-./build-from-source.sh --skip-source-build --skip-download
+bash /mnt/DATA/UBUNTU/build_armbian.sh --no-docker \
+    --sysroot /opt/arm64-sysroot \
+    --sdk-path /opt/ti-vision-apps-sdk
 ```
-
-Armbian's `compile.sh` also has its own incremental caching — it reuses a
-cached rootfs if nothing affecting it has changed.
