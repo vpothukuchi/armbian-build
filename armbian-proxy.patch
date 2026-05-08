@@ -1,0 +1,56 @@
+diff --git a/lib/functions/general/python-tools.sh b/lib/functions/general/python-tools.sh
+index a4a086f02..cc235d59a 100644
+--- a/lib/functions/general/python-tools.sh
++++ b/lib/functions/general/python-tools.sh
+@@ -126,11 +126,11 @@ function prepare_python_and_pip() {
+ 
+ 		# Install pip, using get-pip.py; that bootstraps pip using an embedded, temporary, pip contained in get-pip.py
+ 		display_alert "Installing pip using get-pip.py" "${pip3_version_number}" "info"
+-		run_host_command_logged env -i "${PYTHON3_VARS[@]@Q}" "${PYTHON3_INFO[BIN]}" "${PYTHON3_INFO[GET_PIP_BIN]}" "${pip3_extra_args[@]}" "pip==${pip3_version_number}"
++        run_host_command_logged env -i HTTPS_PROXY=http://webproxy.ext.ti.com:80 "${PYTHON3_VARS[@]@Q}" "${PYTHON3_INFO[BIN]}" "${PYTHON3_INFO[GET_PIP_BIN]}" "${pip3_extra_args[@]}" "pip==${pip3_version_number}"
+ 
+ 		# Install the dependencies
+ 		display_alert "Installing Python dependencies" "from ${python3_pip_dependencies_path}" "info"
+-		run_host_command_logged env -i "${PYTHON3_VARS[@]@Q}" "${PYTHON3_INFO[BIN]}" -m pip install "${pip3_extra_args[@]}" -r "${python3_pip_dependencies_path}"
++        run_host_command_logged env -i HTTPS_PROXY=http://webproxy.ext.ti.com:80 "${PYTHON3_VARS[@]@Q}" "${PYTHON3_INFO[BIN]}" -m pip install "${pip3_extra_args[@]}" -r "${python3_pip_dependencies_path}"
+ 
+ 		# Create the hash file
+ 		run_host_command_logged touch "${python_hash_file}"
+diff --git a/lib/functions/host/docker.sh b/lib/functions/host/docker.sh
+index 198e8c261..1e662adf0 100644
+--- a/lib/functions/host/docker.sh
++++ b/lib/functions/host/docker.sh
+@@ -409,6 +409,16 @@ function docker_cli_prepare_launch() {
+ 		"--env" "GITHUB_SHA=${GITHUB_SHA}"
+ 		"--env" "GITHUB_WORKFLOW=${GITHUB_WORKFLOW}"
+ 		"--env" "GITHUB_WORKSPACE=${GITHUB_WORKSPACE}"
++        "--env" "http_proxy=http://172.16.172.136:80"
++        "--env" "https_proxy=http://172.16.172.136:80"
++        "--env" "ftp_proxy=http://172.16.172.136:80"
++
++        "--env" "HTTP_PROXY=http://172.16.172.136:80"
++        "--env" "HTTPS_PROXY=http://172.16.172.136:80"
++        "--env" "FTP_PROXY=http://172.16.172.136:80"
++
++        "--env" "NO_PROXY=localhost,127.0.0.1,ti.com"
++        "--env" "no_proxy=localhost,127.0.0.1,ti.com"
+ 
+ 		# Pass proxy args
+  		"--env" "http_proxy=${http_proxy:-${HTTP_PROXY}}"
+diff --git a/lib/functions/rootfs/distro-agnostic.sh b/lib/functions/rootfs/distro-agnostic.sh
+index 3ce2de462..c235b41d2 100644
+--- a/lib/functions/rootfs/distro-agnostic.sh
++++ b/lib/functions/rootfs/distro-agnostic.sh
+@@ -315,8 +315,12 @@ function install_distribution_agnostic() {
+ 		chroot_sdcard_apt_get clean
+ 	fi
+ 
++    chroot_sdcard "echo 'Acquire::http::proxy \"http://172.16.172.136:80\";' > /etc/apt/apt.conf"
++    display_alert "PROXY SET INSDIE CHROOT"
+ 	display_alert "Updating" "apt package lists"
+ 	do_with_retries 3 chroot_sdcard_apt_get_update
++    display_alert "UPDATE DONE INSDIE CHROOT"
++    run_host_command_logged "cat $SDCARD/etc/apt/apt.conf"
+ 
+ 	# install image packages; AGGREGATED_PACKAGES_IMAGE is produced by aggregation.py
+ 	# and includes the old PACKAGE_LIST_BOARD and PACKAGE_LIST_FAMILY

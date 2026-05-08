@@ -315,12 +315,8 @@ function install_distribution_agnostic() {
 		chroot_sdcard_apt_get clean
 	fi
 
-    chroot_sdcard "echo 'Acquire::http::proxy \"http://172.16.172.134:80\";' > /etc/apt/apt.conf"
-    display_alert "PROXY SET INSDIE CHROOT"
 	display_alert "Updating" "apt package lists"
 	do_with_retries 3 chroot_sdcard_apt_get_update
-    display_alert "UPDATE DONE INSDIE CHROOT"
-    run_host_command_logged "cat $SDCARD/etc/apt/apt.conf"
 
 	# install image packages; AGGREGATED_PACKAGES_IMAGE is produced by aggregation.py
 	# and includes the old PACKAGE_LIST_BOARD and PACKAGE_LIST_FAMILY
