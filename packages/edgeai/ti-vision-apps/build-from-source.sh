@@ -4,28 +4,33 @@
 # This script builds libtivision_apps.so from the TI SDK source repositories
 # using the Arago cross-compiler and Yocto target sysroot.
 #
-# Prerequisites (all available in a PSDK Analytics Yocto build):
-#   - Arago aarch64-oe-linux cross-compiler
+# Prerequisites:
+#   - aarch64-oe-linux cross-compiler (in Docker image via OE compat shim;
+#     on host: aarch64-linux-gnu-* + /opt/cross-oe/bin shim, or OE toolchain)
 #   - j784s4-evm target sysroot (libc, GLES, EGL, etc.)
-#   - SDK source repos (cloned via `repo` from PSDK manifest)
+#   - repo tool (auto-installed in Docker image; on host: install from
+#     https://storage.googleapis.com/git-repo-downloads/repo)
 #
-# Source repos required (from vision_apps_yocto.xml manifest):
+# This script auto-syncs the SDK source repos via `repo` on first run.
+# If --sdk-path already contains sdk_builder/ the sync is skipped.
+# Source repos come from the vision_apps_yocto.xml manifest:
 #   sdk_builder, tiovx, vision_apps, app_utils, imaging, video_io,
 #   ti-perception-toolkit, psdk_include, concerto
 #
 # Usage: ./build-from-source.sh [OPTIONS]
-#   --sdk-path       <path>  Root of cloned SDK repos (contains sdk_builder/)
+#   --sdk-path       <path>  Directory for SDK repos (synced here if empty)
 #   --sysroot        <path>  Target sysroot for linking
 #   --toolchain-bin  <path>  Directory containing aarch64-oe-linux-* tools
 #   --soc            <soc>   Target SoC: j784s4|j722s|j721e|j721s2|am62a (default: j784s4)
 #   --jobs           <N>     Parallel make jobs (default: $(nproc))
+#   --skip-sync              Skip repo sync (assume SDK already present at --sdk-path)
 #   --skip-build             Skip compilation, use pre-existing build outputs
 #
-# Example:
+# Example (first run — clones SDK automatically):
 #   ./build-from-source.sh \
-#     --sdk-path      /path/to/psdk-analytics/repo \
+#     --sdk-path      /opt/ti-vision-apps-sdk \
 #     --sysroot       /path/to/sysroots/j784s4-evm \
-#     --toolchain-bin /path/to/sysroots/x86_64/usr/bin/aarch64-oe-linux
+#     --toolchain-bin /opt/cross-oe/bin
 
 set -euo pipefail
 
@@ -39,7 +44,13 @@ SYSROOT=""
 TOOLCHAIN_BIN=""
 SOC="j784s4"
 JOBS="$(nproc)"
+SKIP_SYNC=0
 SKIP_BUILD=0
+
+# Manifest coordinates — from meta-edgeai ti-vision-apps.bb (SRC_URI)
+MANIFEST_URL="https://git.ti.com/git/processor-sdk/psdk_repo_manifests.git"
+MANIFEST_BRANCH="refs/tags/REL.PSDK.ANALYTICS.11.02.00.06"
+MANIFEST_FILE="vision_apps_yocto.xml"
 
 PKG_VERSION="11.02.03"
 DEB_REVISION="1"
@@ -58,6 +69,7 @@ while [[ $# -gt 0 ]]; do
         --toolchain-bin) TOOLCHAIN_BIN="$2"; shift 2 ;;
         --soc)           SOC="$2";           shift 2 ;;
         --jobs)          JOBS="$2";          shift 2 ;;
+        --skip-sync)     SKIP_SYNC=1;        shift ;;
         --skip-build)    SKIP_BUILD=1;       shift ;;
         --help)
             sed -n '/^# Usage:/,/^$/p' "$0"
@@ -87,6 +99,39 @@ check_deps() {
     if [[ ${#missing[@]} -gt 0 ]]; then
         error "Missing tools/components: ${missing[*]}"
     fi
+}
+
+# ---------------------------------------------------------------------------
+# Step 0: Sync SDK source repos via repo
+#
+# Mirrors exactly what Yocto's do_fetch does for this recipe.
+# Runs only when sdk_builder/ is absent at --sdk-path (idempotent).
+# ---------------------------------------------------------------------------
+sync_sdk() {
+    info "=== Syncing SDK source via repo ==="
+    info "  URL:      ${MANIFEST_URL}"
+    info "  Branch:   ${MANIFEST_BRANCH}"
+    info "  Manifest: ${MANIFEST_FILE}"
+    info "  Target:   ${SDK_PATH}"
+
+    command -v repo &>/dev/null || \
+        error "'repo' not found. Install it:
+  curl -fsSL https://storage.googleapis.com/git-repo-downloads/repo \
+       -o /usr/local/bin/repo && chmod +x /usr/local/bin/repo"
+
+    mkdir -p "${SDK_PATH}"
+    pushd "${SDK_PATH}" > /dev/null
+
+    repo init \
+        --no-clone-bundle \
+        -u "${MANIFEST_URL}" \
+        -b "${MANIFEST_BRANCH}" \
+        -m "${MANIFEST_FILE}"
+
+    repo sync --no-clone-bundle -j"${JOBS}"
+
+    popd > /dev/null
+    info "SDK sync complete."
 }
 
 # ---------------------------------------------------------------------------
@@ -137,15 +182,25 @@ build_from_source() {
     # PSDK_PATH must point to the parent of sdk_builder (i.e., SDK_PATH).
     cd "${SDK_PATH}/sdk_builder"
 
-    # GCC_LINUX_ARM_ROOT must point to the toolchain parent (contains bin/aarch64-oe-linux/*)
-    # CROSS_COMPILE_LINARO is the cross-compiler prefix relative to GCC_LINUX_ARM_ROOT/bin/
-    # LINUX_SYSROOT_ARM is the target sysroot (used for --sysroot flag)
+    # GCC_LINUX_ARM_ROOT must point to the toolchain parent directory.
+    # tools_path.mak sets CROSS_COMPILE_LINARO = aarch64-oe-linux/aarch64-oe-linux-
+    # so concerto.mak resolves the compiler as:
+    #   $(GCC_LINUX_ARM_ROOT)/bin/aarch64-oe-linux/aarch64-oe-linux-gcc
+    # With TOOLCHAIN_BIN=/opt/cross-oe/bin, GCC_LINUX_ARM_ROOT must be /opt/cross-oe.
+    # LINUX_SYSROOT_ARM is the target sysroot (passed as --sysroot to all compiler flags)
     # The SDK builder also looks for $(PSDK_PATH)/targetfs as include search path,
     # so we create a symlink: SDK_PATH/targetfs -> SYSROOT
-    local GCC_LINUX_ARM_ROOT="${TOOLCHAIN_BIN%/bin/aarch64-oe-linux}"
+    local GCC_LINUX_ARM_ROOT="${TOOLCHAIN_BIN%/bin}"
 
     # Create targetfs symlink expected by build system
     ln -snf "${SYSROOT}" "${SDK_PATH}/targetfs"
+
+    # The 3dsrv SRV-GPU kernel's concerto.mak adds:
+    #   IDIRS += $(PSDK_PATH)/toolchain/sysroots/aarch64-oe-linux/usr/include
+    # which maps to the Yocto toolchain sysroot. Create a symlink so this path
+    # resolves to our arm64 sysroot (GLFW, GLEW, GLM, nlohmann headers live there).
+    mkdir -p "${SDK_PATH}/toolchain/sysroots"
+    ln -snf "${SYSROOT}" "${SDK_PATH}/toolchain/sysroots/aarch64-oe-linux"
 
     # Copy psdk_include to SDK_PATH root (COPYDIR step performed by yocto_build target)
     if [[ -d "${SDK_PATH}/psdk_include" ]]; then
@@ -191,7 +246,7 @@ install_from_source() {
 
     local MPU_CPU="A72"
     [[ "${SOC}" == "am62a" ]] && MPU_CPU="A53"
-    local GCC_LINUX_ARM_ROOT="${TOOLCHAIN_BIN%/bin/aarch64-oe-linux}"
+    local GCC_LINUX_ARM_ROOT="${TOOLCHAIN_BIN%/bin}"
 
     local STAGE_PATH="${STAGING_DIR}/rootfs"
     rm -rf "${STAGE_PATH}"
@@ -277,6 +332,17 @@ main() {
     info ""
 
     check_deps
+
+    # Sync SDK source if not already present (mirrors Yocto do_fetch)
+    if [[ "${SKIP_SYNC}" -eq 0 ]]; then
+        if [[ ! -d "${SDK_PATH}/sdk_builder" ]]; then
+            sync_sdk
+        else
+            info "SDK already present at ${SDK_PATH}/sdk_builder — skipping repo sync"
+            info "  (delete ${SDK_PATH}/sdk_builder to force re-sync)"
+        fi
+    fi
+
     validate_paths
 
     if [[ "${SKIP_BUILD}" -eq 0 ]]; then

@@ -54,6 +54,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libyaml-cpp-dev \
     libglib2.0-dev \
     \
+    # Architecture-independent (arch:all) headers needed by vision_apps SRV GPU kernel.
+    # These are copied into the arm64 sysroot further below.
+    libstb-dev \
+    nlohmann-json3-dev \
+    \
     # Misc
     ca-certificates \
     file \
@@ -102,6 +107,86 @@ RUN dpkg --add-architecture arm64 && \
     && rm -rf /var/lib/apt/lists/*
 
 # ---------------------------------------------------------------------------
+# Arm64 cross-compile sysroot — /opt/arm64-sysroot
+#
+# Vision-apps and ti-tidl cross-compile against an aarch64 target sysroot.
+# We build one here from Ubuntu Noble arm64 packages so Docker builds need
+# no external sysroot (no losetup / no sudo / no Armbian image mount).
+#
+# Strategy: apt-get download arm64 .deb files, then dpkg-deb -x each into
+# /opt/arm64-sysroot/.  This avoids package-manager conflicts between the
+# host amd64 dev packages and their arm64 counterparts.
+#
+# We also copy the arm64 files already installed in the container
+# (libc6:arm64 and friends pulled in via libpython3.12-dev:arm64) so the
+# sysroot has a complete C/C++ runtime.
+#
+# Packages needed (from vision-apps DEPENDS):
+#   virtual/egl  → libegl-dev:arm64
+#   freetype     → libfreetype6-dev:arm64
+#   libpam       → libpam0g-dev:arm64
+#   glm          → libglm-dev (header-only — amd64 headers are arch-neutral)
+# ---------------------------------------------------------------------------
+RUN mkdir -p /opt/arm64-sysroot/usr && \
+    \
+    # Copy arm64 C/C++ libraries already present in the container
+    # (libc6:arm64, libstdc++6:arm64 etc. installed as multiarch deps)
+    cp -a /usr/lib/aarch64-linux-gnu  /opt/arm64-sysroot/usr/lib && \
+    cp -a /usr/include/aarch64-linux-gnu /opt/arm64-sysroot/usr/include 2>/dev/null || true && \
+    # /lib → usr/lib alias (some linker scripts reference /lib/aarch64-linux-gnu/)
+    ln -sf usr/lib /opt/arm64-sysroot/lib && \
+    \
+    # Download and extract arm64 dev packages (no package DB touch)
+    cd /tmp && apt-get update && \
+    apt-get download \
+        libfreetype6:arm64 \
+        libfreetype-dev:arm64 \
+        libpam0g:arm64 \
+        libpam0g-dev:arm64 \
+        libglvnd0:arm64 \
+        libegl1:arm64 \
+        libegl-dev:arm64 \
+        libgles2:arm64 \
+        libgles-dev:arm64 \
+        libgl-dev:arm64 \
+        libgbm1:arm64 \
+        libgbm-dev:arm64 \
+        libdrm2:arm64 \
+        libdrm-dev:arm64 \
+        libglfw3:arm64 \
+        libglfw3-dev:arm64 \
+        libglew2.2:arm64 \
+        libglew-dev:arm64 \
+        libc6:arm64 \
+        libc6-dev:arm64 \
+        libstdc++6:arm64 \
+        libstdc++-13-dev:arm64 \
+    && for f in /tmp/*.deb; do \
+           dpkg-deb -x "${f}" /opt/arm64-sysroot/; \
+           rm "${f}"; \
+       done \
+    && rm -rf /var/lib/apt/lists/* \
+    # Ubuntu's libdrm-dev installs headers to /usr/include/libdrm/*.h
+    # Yocto/OE sysroots expose them directly as /usr/include/drm.h etc.
+    # Create flat symlinks so #include <drm.h> and #include <drm_fourcc.h> work.
+    && for h in /opt/arm64-sysroot/usr/include/libdrm/*.h; do \
+           ln -sf "libdrm/$(basename "${h}")" \
+                  "/opt/arm64-sysroot/usr/include/$(basename "${h}")"; \
+       done \
+    # Copy architecture-neutral (arch:all) headers installed on the host into
+    # the arm64 sysroot so the cross-compiler finds them via --sysroot.
+    # GLM: vision_apps 3dsrv GPU kernel includes <glm/glm.hpp> etc.
+    && cp -a /usr/include/glm       /opt/arm64-sysroot/usr/include/ \
+    # nlohmann/json: vision_apps 3dsrv GPU kernel includes <nlohmann/json.hpp>
+    && cp -a /usr/include/nlohmann  /opt/arm64-sysroot/usr/include/ \
+    # stb: vision_apps includes <stb_image.h> (without the stb/ prefix)
+    && cp    /usr/include/stb/*.h   /opt/arm64-sysroot/usr/include/ \
+    # Allow non-root container users (e.g. --user $(id -u)) to overlay
+    # additional .deb packages (libti-rpmsg-char-dev, libtivision-apps-dev)
+    # into the sysroot at build time via dpkg-deb -x.
+    && chmod -R a+rwX /opt/arm64-sysroot
+
+# ---------------------------------------------------------------------------
 # repo tool (Google Android repo, used for TI SDK source manifest checkout)
 # ---------------------------------------------------------------------------
 RUN curl -fsSL -o /usr/local/bin/repo \
@@ -131,7 +216,26 @@ RUN mkdir -p /opt/cross-oe/bin && \
         fi; \
     done && \
     ln -sf /opt/cross-oe/bin/aarch64-oe-linux-gcc \
-           /opt/cross-oe/bin/aarch64-oe-linux-cc
+           /opt/cross-oe/bin/aarch64-oe-linux-cc && \
+    \
+    # TI SDK builder's tools_path.mak sets CROSS_COMPILE_LINARO to the nested form:
+    #   aarch64-oe-linux/aarch64-oe-linux-
+    # so concerto.mak resolves the compiler at:
+    #   $(GCC_LINUX_ARM_ROOT)/bin/aarch64-oe-linux/aarch64-oe-linux-gcc
+    # Create the nested subdirectory so both the flat naming convention used by
+    # the smoke test and the nested one used by the SDK builder are satisfied.
+    mkdir -p /opt/cross-oe/bin/aarch64-oe-linux && \
+    for tool in \
+        gcc g++ cpp ar as ld nm ranlib strip \
+        objcopy objdump readelf addr2line size strings; \
+    do \
+        if [ -x "/usr/bin/aarch64-linux-gnu-${tool}" ]; then \
+            ln -sf "/usr/bin/aarch64-linux-gnu-${tool}" \
+                   "/opt/cross-oe/bin/aarch64-oe-linux/aarch64-oe-linux-${tool}"; \
+        fi; \
+    done && \
+    ln -sf /opt/cross-oe/bin/aarch64-oe-linux/aarch64-oe-linux-gcc \
+           /opt/cross-oe/bin/aarch64-oe-linux/aarch64-oe-linux-cc
 
 ENV PATH="/opt/cross-oe/bin:${PATH}"
 
@@ -145,11 +249,16 @@ RUN printf 'int main(void){return 0;}\n' | \
     echo "aarch64-linux-gnu-gcc OK: $(aarch64-linux-gnu-gcc --version | head -1)" && \
     rm /tmp/test-gnu
 
-# 2. OE compat shim
+# 2. OE compat shim — flat (/opt/cross-oe/bin/aarch64-oe-linux-gcc) and
+#    nested (/opt/cross-oe/bin/aarch64-oe-linux/aarch64-oe-linux-gcc)
 RUN printf 'int main(void){return 0;}\n' | \
         /opt/cross-oe/bin/aarch64-oe-linux-gcc -x c - -o /tmp/test-oe && \
-    echo "aarch64-oe-linux-gcc shim OK" && \
-    rm /tmp/test-oe
+    echo "aarch64-oe-linux-gcc flat shim OK" && \
+    rm /tmp/test-oe && \
+    printf 'int main(void){return 0;}\n' | \
+        /opt/cross-oe/bin/aarch64-oe-linux/aarch64-oe-linux-gcc -x c - -o /tmp/test-oe-nested && \
+    echo "aarch64-oe-linux/aarch64-oe-linux-gcc nested shim OK" && \
+    rm /tmp/test-oe-nested
 
 # 3. debhelper available
 RUN dh --version | head -1

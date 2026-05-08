@@ -126,11 +126,11 @@ function prepare_python_and_pip() {
 
 		# Install pip, using get-pip.py; that bootstraps pip using an embedded, temporary, pip contained in get-pip.py
 		display_alert "Installing pip using get-pip.py" "${pip3_version_number}" "info"
-		run_host_command_logged env -i "${PYTHON3_VARS[@]@Q}" "${PYTHON3_INFO[BIN]}" "${PYTHON3_INFO[GET_PIP_BIN]}" "${pip3_extra_args[@]}" "pip==${pip3_version_number}"
+        run_host_command_logged env -i HTTPS_PROXY=http://172.16.172.134:80 "${PYTHON3_VARS[@]@Q}" "${PYTHON3_INFO[BIN]}" "${PYTHON3_INFO[GET_PIP_BIN]}" "${pip3_extra_args[@]}" "pip==${pip3_version_number}"
 
 		# Install the dependencies
 		display_alert "Installing Python dependencies" "from ${python3_pip_dependencies_path}" "info"
-		run_host_command_logged env -i "${PYTHON3_VARS[@]@Q}" "${PYTHON3_INFO[BIN]}" -m pip install "${pip3_extra_args[@]}" -r "${python3_pip_dependencies_path}"
+        run_host_command_logged env -i HTTPS_PROXY=http://172.16.172.134:80 "${PYTHON3_VARS[@]@Q}" "${PYTHON3_INFO[BIN]}" -m pip install "${pip3_extra_args[@]}" -r "${python3_pip_dependencies_path}"
 
 		# Create the hash file
 		run_host_command_logged touch "${python_hash_file}"

@@ -14,7 +14,7 @@ Depends: ${misc:Depends},
  libstdc++6,
  python3,
  python3-decorator,
- python3-attrs
+ python3-attr
 Description: TI Open Source DL/ML Runtime Modules
  Prebuilt Open Source Runtime (OSRT) modules for TI EdgeAI platforms.
  Includes TFLite Runtime 2.12, ONNX Runtime 1.15 (TIDL), Apache TVM 0.18,

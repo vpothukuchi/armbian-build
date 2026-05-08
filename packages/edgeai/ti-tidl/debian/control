@@ -12,7 +12,7 @@ Depends: ${misc:Depends},
  libc6,
  libgcc-s1,
  libstdc++6,
- ti-vision-apps,
+ libtivision-apps11.2.0,
  libti-rpmsg-char0
 Description: TI TIDL Delegate Libraries (arm-tidl)
  Source-built TIDL inference delegate shared libraries for TI EdgeAI

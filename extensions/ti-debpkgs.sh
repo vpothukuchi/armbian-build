@@ -36,6 +36,29 @@ function custom_apt_repo__install_ti_packages() {
 	fi
 }
 
+function pre_customize_image__install_edgeai_debs() {
+    local deb deb_basename
+    local -a debs_in_chroot=()
+
+    # Stage all EdgeAI debs into chroot /root/ first so apt-get can resolve
+    # cross-package dependencies (e.g. -dev requires its runtime counterpart)
+    # in a single pass rather than failing on individual installs.
+    for deb in "${DEB_STORAGE}/extra/"*.deb; do
+        [[ -f "${deb}" ]] || continue
+        deb_basename="$(basename "${deb}")"
+        display_alert "Staging EdgeAI deb" "${deb_basename}" "info"
+        run_host_command_logged cp -pv "${deb}" "${SDCARD}/root/${deb_basename}"
+        debs_in_chroot+=("/root/${deb_basename}")
+    done
+
+    [[ ${#debs_in_chroot[@]} -eq 0 ]] && return 0
+
+    display_alert "Installing EdgeAI debs" "${#debs_in_chroot[@]} packages" "info"
+    declare -g if_error_detail_message="EdgeAI deb installation failed ${BOARD} ${RELEASE}"
+    DONT_MAINTAIN_APT_CACHE="yes" \
+        chroot_sdcard_apt_get --no-install-recommends install "${debs_in_chroot[@]}"
+}
+
 function pre_customize_image__enable_services() {
 	run_host_command_logged "mkdir -p $DEST/lib/systemd/system/"
 	run_host_command_logged "cp -v $SRC/packages/bsp/ti/weston/weston.socket $SDCARD/lib/systemd/system/weston.socket"

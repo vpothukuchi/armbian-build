@@ -31,9 +31,11 @@
 #                         Quick option: use the ti-vision-apps staging sysroot:
 #                           --sysroot /path/to/edgeai/ti-vision-apps/staging-src/rootfs
 #                       ti-vision-apps source build: required target rootfs
-#   --sdk-path <path>   Host path to the SDK source tree obtained via:
-#                         repo init -u ... -m vision_apps_yocto.xml && repo sync
-#                       Mounted read-only at /sdk inside the container.
+#   --sdk-path <path>   Host path for the SDK source tree.
+#                       Mounted read-write at /sdk inside the container.
+#                       On first run the SDK repos are cloned here automatically
+#                       via repo sync (vision_apps_yocto.xml manifest).
+#                       On subsequent runs the existing checkout is reused.
 #                       Required for ti-vision-apps source build.
 #   --ipk-dir  <path>   Host path to directory containing prebuilt .ipk files.
 #                       Mounted read-only at /ipk inside the container.
@@ -73,9 +75,9 @@
 #     --sysroot /path/to/edgeai/ti-vision-apps/staging-src/rootfs \
 #     ti-tidl
 #
-#   # ti-vision-apps — source build (needs repo-synced SDK + target sysroot):
+#   # ti-vision-apps — source build (SDK repos cloned automatically on first run):
 #   ./docker-build.sh \
-#     --sdk-path /path/to/psdk-analytics/repo \
+#     --sdk-path /path/to/sdk-dir \
 #     --sysroot  /path/to/armbian/output/j784s4-rootfs \
 #     ti-vision-apps
 #
@@ -200,7 +202,7 @@ docker_run() {
     [[ -n "${SYSROOT_PATH}" ]] && \
         run_args+=(-v "${SYSROOT_PATH}:/sysroot:ro")
     [[ -n "${SDK_PATH}" ]] && \
-        run_args+=(-v "${SDK_PATH}:/sdk:ro")
+        run_args+=(-v "${SDK_PATH}:/sdk")
     [[ -n "${IPK_DIR}" ]] && \
         run_args+=(-v "${IPK_DIR}:/ipk:ro")
 
@@ -258,25 +260,48 @@ build_ti_tidl_osrt() {
 build_ti_tidl() {
     info "=== Building ti-tidl ==="
 
-    # ti-tidl source build requires:
-    #   1. --sysroot: aarch64 sysroot with ti-vision-apps dev headers + .so stubs
-    #   2. --mirror: optional, for offline/faster git clones
-    [[ -n "${SYSROOT_PATH}" ]] || \
-        error "ti-tidl source build requires --sysroot <path>.
-  The sysroot must contain ti-vision-apps dev headers and shared libs.
-  Quick option: use the ti-vision-apps staging sysroot:
-    --sysroot /path/to/edgeai/ti-vision-apps/staging-src/rootfs"
+    # ti-tidl needs an aarch64 sysroot containing:
+    #   - ti-vision-apps dev headers (/usr/include/processor_sdk/...)
+    #   - libti-rpmsg-char dev headers and .so stubs
+    #
+    # If no --sysroot is provided, the Docker-internal sysroot at
+    # /opt/arm64-sysroot is used. The dev .deb files produced in A1/A2
+    # (sitting in /workspace/) are overlaid into it inside the container.
+    local sysroot_container
+    if [[ -n "${SYSROOT_PATH}" ]]; then
+        sysroot_container="/sysroot"
+    else
+        sysroot_container="/opt/arm64-sysroot"
+    fi
 
     local -a args=(
-        --sysroot /sysroot
+        --sysroot "${sysroot_container}"
     )
 
     if [[ -n "${MIRROR_PATH}" ]]; then
         args+=(--mirror /mirrors)
     fi
 
+    # When using the Docker-internal sysroot, overlay both runtime and dev .deb
+    # files (built in earlier phases, present at /workspace/) into the sysroot
+    # so headers are found at compile time and .so stubs resolve at link time.
+    # Runtime packages (.so.N) must come before dev packages (.so stubs that
+    # symlink to the .so.N) to avoid dangling symlinks during the link step.
+    local pre_cmd=""
+    if [[ "${sysroot_container}" == "/opt/arm64-sysroot" ]]; then
+        pre_cmd='for deb in \
+    /workspace/libti-rpmsg-char0_*.deb \
+    /workspace/libti-rpmsg-char-dev_*.deb \
+    /workspace/libtivision-apps11.2.0_*.deb \
+    /workspace/libtivision-apps-dev_*.deb \
+    /workspace/ti-vision-apps-dev_*.deb; do
+    [ -f "${deb}" ] && dpkg-deb -x "${deb}" /opt/arm64-sysroot || true
+done
+'
+    fi
+
     docker_run bash -c \
-        "cd /workspace/ti-tidl && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
+        "${pre_cmd}cd /workspace/ti-tidl && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
 }
 
 build_ti_vision_apps() {
@@ -295,10 +320,8 @@ build_ti_vision_apps() {
     # Source build flow
     [[ -n "${SDK_PATH}" ]] || \
         error "ti-vision-apps source build requires --sdk-path <path>.
-  Obtain SDK source with:
-    repo init -u https://git.ti.com/git/processor-sdk/psdk_repo_manifests.git \\
-         -b REL.PSDK.ANALYTICS.11.02.00.06 -m vision_apps_yocto.xml
-    repo sync -j8
+  Provide an empty directory and the SDK repos will be cloned automatically:
+    --sdk-path /some/dir      (repo sync runs on first use; reused on subsequent runs)
   Or use --prebuilt --ipk-dir <path> for the prebuilt IPK flow."
 
     local -a args=(
@@ -309,10 +332,23 @@ build_ti_vision_apps() {
         --toolchain-bin /opt/cross-oe/bin
     )
 
-    [[ -n "${SYSROOT_PATH}" ]] && args+=(--sysroot /sysroot)
+    local sysroot_container
+    local pre_cmd=""
+    if [[ -n "${SYSROOT_PATH}" ]]; then
+        sysroot_container="/sysroot"
+    else
+        # No external sysroot provided; use the Docker-internal arm64 sysroot.
+        # Overlay libti-rpmsg-char-dev so app_utils/ipc can find ti_rpmsg_char.h.
+        sysroot_container="/opt/arm64-sysroot"
+        pre_cmd='for deb in /workspace/libti-rpmsg-char0_*.deb /workspace/libti-rpmsg-char-dev_*.deb; do
+    [ -f "${deb}" ] && dpkg-deb -x "${deb}" /opt/arm64-sysroot || true
+done
+'
+    fi
+    args+=(--sysroot "${sysroot_container}")
 
     docker_run bash -c \
-        "cd /workspace/ti-vision-apps && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
+        "${pre_cmd}cd /workspace/ti-vision-apps && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
 }
 
 drop_shell() {
@@ -339,7 +375,7 @@ drop_shell() {
     )
     [[ -n "${MIRROR_PATH}" ]]  && run_args+=(-v "${MIRROR_PATH}:/mirrors:ro")
     [[ -n "${SYSROOT_PATH}" ]] && run_args+=(-v "${SYSROOT_PATH}:/sysroot:ro")
-    [[ -n "${SDK_PATH}" ]]     && run_args+=(-v "${SDK_PATH}:/sdk:ro")
+    [[ -n "${SDK_PATH}" ]]     && run_args+=(-v "${SDK_PATH}:/sdk")
     [[ -n "${IPK_DIR}" ]]      && run_args+=(-v "${IPK_DIR}:/ipk:ro")
 
     docker run "${run_args[@]}" "${IMAGE_NAME}:${IMAGE_TAG}" /bin/bash
@@ -385,18 +421,13 @@ case "${TARGET}" in
     all)
         build_ti_rpmsg_char
         build_ti_tidl_osrt
-        if [[ -n "${SYSROOT_PATH}" ]]; then
+        if [[ -n "${SDK_PATH}" || "${PREBUILT}" -eq 1 ]]; then
+            # Build vision-apps first (ti-tidl needs its dev headers)
+            build_ti_vision_apps
             build_ti_tidl
         else
-            warn "Skipping ti-tidl (no --sysroot provided)."
-            warn "  Run with --sysroot <path> to include it."
-            warn "  Quick option: --sysroot /path/to/edgeai/ti-vision-apps/staging-src/rootfs"
-        fi
-        if [[ -n "${SDK_PATH}" || "${PREBUILT}" -eq 1 ]]; then
-            build_ti_vision_apps
-        else
-            warn "Skipping ti-vision-apps (no --sdk-path provided)."
-            warn "  Run with --sdk-path <path> or --prebuilt --ipk-dir <path> to include it."
+            warn "Skipping ti-vision-apps and ti-tidl (no --sdk-path provided)."
+            warn "  Run with --sdk-path <path> or --prebuilt --ipk-dir <path> to include them."
         fi
         ;;
 esac
