@@ -129,8 +129,11 @@ set(CMAKE_SYSTEM_NAME Linux)
 set(CMAKE_SYSTEM_PROCESSOR aarch64)
 set(CMAKE_C_COMPILER   aarch64-linux-gnu-gcc)
 set(CMAKE_CXX_COMPILER aarch64-linux-gnu-g++)
-set(CMAKE_C_FLAGS   "--sysroot=${SYSROOT}")
-set(CMAKE_CXX_FLAGS "--sysroot=${SYSROOT}")
+# -Wno-maybe-uninitialized: GCC 13 false-positives on NEON vld1q_lane_s32
+# intrinsics in edgeai_dl_pre_proc_armv8_utils.c (U_f/U_s/V_f/V_s are
+# initialised by the intrinsic but GCC can't track it through inlining).
+set(CMAKE_C_FLAGS   "--sysroot=${SYSROOT} -Wno-maybe-uninitialized")
+set(CMAKE_CXX_FLAGS "--sysroot=${SYSROOT} -Wno-maybe-uninitialized")
 set(CMAKE_EXE_LINKER_FLAGS    "--sysroot=${SYSROOT}")
 set(CMAKE_SHARED_LINKER_FLAGS "--sysroot=${SYSROOT}")
 set(CMAKE_FIND_ROOT_PATH "${SYSROOT}")
