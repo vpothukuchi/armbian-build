@@ -407,7 +407,8 @@ compile_armbian() {
         RELEASE=noble \
         GIT_SKIP_SUBMODULES=yes \
         SKIP_ARMBIAN_REPO=yes \
-        SHARE_LOG=yes
+        SHARE_LOG=yes \
+        "$@"
 }
 
 setup_proxy() {
