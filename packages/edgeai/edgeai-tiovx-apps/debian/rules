@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+# debian/rules for edgeai-tiovx-apps
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	install -d debian/edgeai-tiovx-apps
+	# Binaries
+	if [ -d staging/usr/bin ]; then \
+	    install -d debian/edgeai-tiovx-apps/usr/bin; \
+	    find staging/usr/bin -type f -exec cp -a {} \
+	        debian/edgeai-tiovx-apps/usr/bin/ \; ; \
+	fi
+	# Source tree
+	if [ -d staging/opt/edgeai-tiovx-apps ]; then \
+	    install -d debian/edgeai-tiovx-apps/opt/edgeai-tiovx-apps; \
+	    cp -a staging/opt/edgeai-tiovx-apps/. \
+	        debian/edgeai-tiovx-apps/opt/edgeai-tiovx-apps/; \
+	fi
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:

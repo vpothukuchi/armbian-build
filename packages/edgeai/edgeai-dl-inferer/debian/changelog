@@ -1,0 +1,6 @@
+edgeai-dl-inferer (1.0.0-1) noble; urgency=medium
+
+  * Initial packaging of TI EdgeAI DL Inferer library from source.
+    Built from SRCREV d06b07d (PSDK Analytics 11.02).
+
+ -- Vijay Pothukuchi <vijayp@ti.com>  Thu, 08 May 2025 00:00:00 +0000

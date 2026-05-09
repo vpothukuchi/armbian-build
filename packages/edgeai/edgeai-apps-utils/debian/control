@@ -1,0 +1,32 @@
+Source: edgeai-apps-utils
+Section: libs
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://git.ti.com/cgit/edgeai/edgeai-apps-utils
+
+Package: edgeai-apps-utils
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libstdc++6,
+ libtivision-apps11.2.0
+Description: TI EdgeAI Apps Utils library
+ ARMv8 NEON-optimised pre/post-processing utility functions for TI EdgeAI
+ pipelines.  Implements colour conversion, DL pre-processing, scaling, NV12
+ drawing, and performance-stats overlays.
+ .
+ Provides libedgeai-apps-utils.so.0 and installs the source tree under
+ /opt/edgeai-apps-utils/ for on-target development.
+ .
+ Compatible with: j721e, j721s2, j784s4, j722s, j742s2, am62axx.
+
+Package: edgeai-apps-utils-dev
+Architecture: arm64
+Depends: ${misc:Depends}, edgeai-apps-utils (= ${binary:Version})
+Description: TI EdgeAI Apps Utils library - development files
+ Headers and unversioned .so symlink for building against the
+ EdgeAI Apps Utils library.
+ .
+ Headers are installed under /usr/include/edgeai-apps-utils/.

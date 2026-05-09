@@ -1,0 +1,8 @@
+src/
+staging/
+build-from-source.log
+debian/edgeai-tiovx-apps/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars

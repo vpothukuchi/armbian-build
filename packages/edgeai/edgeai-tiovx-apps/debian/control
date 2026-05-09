@@ -1,0 +1,23 @@
+Source: edgeai-tiovx-apps
+Section: misc
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/TexasInstruments/edgeai-tiovx-apps
+
+Package: edgeai-tiovx-apps
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libstdc++6,
+ edgeai-tiovx-kernels,
+ libyaml-cpp0.8,
+ libdrm2,
+ libglib2.0-0t64 | libglib2.0-0
+Description: TI EdgeAI OpenVX demo applications
+ OpenVX-based deep learning demonstration applications for TI EdgeAI
+ platforms.  Builds on top of edgeai-tiovx-kernels to provide ready-to-run
+ inference demos using the OpenVX graph API.
+ .
+ Installs demo binaries and source tree at /opt/edgeai-tiovx-apps/.

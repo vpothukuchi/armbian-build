@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+# debian/rules for edgeai-gst-plugins
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	install -d debian/edgeai-gst-plugins
+	# GStreamer plugins (.so files in gstreamer-1.0/)
+	if [ -d staging/usr/lib/gstreamer-1.0 ]; then \
+	    install -d debian/edgeai-gst-plugins/usr/lib/gstreamer-1.0; \
+	    find staging/usr/lib/gstreamer-1.0 -name "*.so" \
+	        -exec cp -a {} debian/edgeai-gst-plugins/usr/lib/gstreamer-1.0/ \; ; \
+	fi
+	# Source tree
+	if [ -d staging/opt/edgeai-gst-plugins ]; then \
+	    install -d debian/edgeai-gst-plugins/opt/edgeai-gst-plugins; \
+	    cp -a staging/opt/edgeai-gst-plugins/. \
+	        debian/edgeai-gst-plugins/opt/edgeai-gst-plugins/; \
+	fi
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:

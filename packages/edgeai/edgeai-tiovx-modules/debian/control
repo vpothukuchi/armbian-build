@@ -1,0 +1,28 @@
+Source: edgeai-tiovx-modules
+Section: libs
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://git.ti.com/cgit/edgeai/edgeai-tiovx-modules
+
+Package: edgeai-tiovx-modules
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libstdc++6,
+ libtivision-apps11.2.0,
+ edgeai-tiovx-kernels
+Description: TI EdgeAI OpenVX modules library
+ Simple C++ APIs wrapping OpenVX nodes for TI EdgeAI pipelines.
+ Provides higher-level abstractions over edgeai-tiovx-kernels for
+ building video processing and DL inference pipelines.
+ .
+ Provides libedgeai-tiovx-modules.so and source at /opt/edgeai-tiovx-modules/.
+
+Package: edgeai-tiovx-modules-dev
+Architecture: arm64
+Depends: ${misc:Depends}, edgeai-tiovx-modules (= ${binary:Version})
+Description: TI EdgeAI OpenVX modules - development files
+ Headers and unversioned .so symlink for building against
+ edgeai-tiovx-modules.

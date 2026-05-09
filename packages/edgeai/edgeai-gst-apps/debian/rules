@@ -1,0 +1,29 @@
+#!/usr/bin/make -f
+# debian/rules for edgeai-gst-apps
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	install -d debian/edgeai-gst-apps
+	# Binaries
+	if [ -d staging/usr/bin ]; then \
+	    install -d debian/edgeai-gst-apps/usr/bin; \
+	    find staging/usr/bin -type f -exec cp -a {} \
+	        debian/edgeai-gst-apps/usr/bin/ \; ; \
+	fi
+	# Full source + Python scripts at /opt/
+	if [ -d staging/opt/edgeai-gst-apps ]; then \
+	    install -d debian/edgeai-gst-apps/opt/edgeai-gst-apps; \
+	    cp -a staging/opt/edgeai-gst-apps/. \
+	        debian/edgeai-gst-apps/opt/edgeai-gst-apps/; \
+	fi
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:

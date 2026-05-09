@@ -1,0 +1,42 @@
+#!/usr/bin/make -f
+# debian/rules for edgeai-dl-inferer
+#
+# edgeai-dl-inferer builds only static libraries (libedgeai_dl_inferer.a,
+# libedgeai_pre_process.a, libedgeai_post_process.a).  There are no shared
+# .so files.
+#
+# Runtime package: Python binding module (edgeai_dl_inferer.py).
+# Dev package:     Static libs + headers (usr/include/edgeai_dl_inferer/).
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	# --- Runtime package: Python module ---
+	if [ -d staging/usr/lib/python3.12 ]; then \
+	    find staging/usr/lib/python3.12 -name "*.py" | while read f; do \
+	        rel=$$(realpath --relative-to=staging "$$f"); \
+	        install -Dm644 "$$f" "debian/edgeai-dl-inferer/$$rel"; \
+	    done; \
+	fi
+
+	# --- Dev package: static libraries ---
+	install -d debian/edgeai-dl-inferer-dev/usr/lib
+	find staging/usr/lib -maxdepth 1 -name "libedgeai*.a" \
+	    -exec install -m 0644 {} debian/edgeai-dl-inferer-dev/usr/lib/ \;
+
+	# --- Dev package: headers ---
+	if [ -d staging/usr/include/edgeai_dl_inferer ]; then \
+	    install -d debian/edgeai-dl-inferer-dev/usr/include/edgeai_dl_inferer; \
+	    cp -a staging/usr/include/edgeai_dl_inferer/. \
+	        debian/edgeai-dl-inferer-dev/usr/include/edgeai_dl_inferer/; \
+	fi
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:

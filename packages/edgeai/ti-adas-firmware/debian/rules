@@ -1,0 +1,24 @@
+#!/usr/bin/make -f
+# debian/rules for ti-adas-firmware
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	install -d debian/ti-adas-firmware
+	# Firmware blobs
+	if [ -d staging/usr/lib/firmware/vision_apps_evm ]; then \
+	    install -d debian/ti-adas-firmware/usr/lib/firmware/vision_apps_evm; \
+	    cp -a staging/usr/lib/firmware/vision_apps_evm/. \
+	        debian/ti-adas-firmware/usr/lib/firmware/vision_apps_evm/; \
+	fi
+
+override_dh_strip:
+	# Do not strip firmware binaries (RTOS ELF files, not host executables)
+
+override_dh_shlibdeps:
+	# No shared library dependencies

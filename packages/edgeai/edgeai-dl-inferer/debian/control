@@ -1,0 +1,28 @@
+Source: edgeai-dl-inferer
+Section: libs
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://git.ti.com/cgit/edgeai/edgeai-dl-inferer
+
+Package: edgeai-dl-inferer
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libstdc++6,
+ edgeai-apps-utils,
+ ti-tidl-osrt,
+ libyaml-cpp0.8
+Description: TI EdgeAI Deep Learning Inferer library
+ A Linux C++ library abstracting the Open Source Runtime (OSRT) APIs for
+ DL inference. Supports TFLite and ONNX Runtime backends.
+ .
+ Provides Python bindings for the DL inferer (edgeai_dl_inferer.py).
+
+Package: edgeai-dl-inferer-dev
+Architecture: arm64
+Depends: ${misc:Depends}, edgeai-dl-inferer (= ${binary:Version})
+Description: TI EdgeAI Deep Learning Inferer library - development files
+ Static libraries and headers for building against edgeai-dl-inferer:
+   libedgeai_dl_inferer.a, libedgeai_pre_process.a, libedgeai_post_process.a

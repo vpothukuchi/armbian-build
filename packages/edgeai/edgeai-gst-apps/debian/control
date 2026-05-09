@@ -1,0 +1,26 @@
+Source: edgeai-gst-apps
+Section: misc
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/TexasInstruments/edgeai-gst-apps
+
+Package: edgeai-gst-apps
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libstdc++6,
+ libtivision-apps11.2.0,
+ edgeai-dl-inferer,
+ edgeai-gst-plugins,
+ libyaml-cpp0.8,
+ libgstreamer1.0-0,
+ python3
+Description: TI EdgeAI GStreamer demo applications
+ GStreamer-based deep learning demonstrations for TI EdgeAI platforms.
+ Provides C++ demo binaries plus Python launch scripts for end-to-end
+ inference pipelines using camera, display, and multiple DL models.
+ .
+ Installs binaries and complete source + Python scripts at
+ /opt/edgeai-gst-apps/.

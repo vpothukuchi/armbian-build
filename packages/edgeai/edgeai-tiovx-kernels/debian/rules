@@ -1,0 +1,39 @@
+#!/usr/bin/make -f
+# debian/rules for edgeai-tiovx-kernels
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	install -d debian/edgeai-tiovx-kernels/usr/lib
+	find staging/usr/lib -name "libedgeai-tiovx-kernels.so.*" \
+	    -exec cp -a {} debian/edgeai-tiovx-kernels/usr/lib/ \;
+	if [ -d staging/opt/edgeai-tiovx-kernels ]; then \
+	    install -d debian/edgeai-tiovx-kernels/opt/edgeai-tiovx-kernels; \
+	    cp -a staging/opt/edgeai-tiovx-kernels/. \
+	        debian/edgeai-tiovx-kernels/opt/edgeai-tiovx-kernels/; \
+	fi
+
+	install -d debian/edgeai-tiovx-kernels-dev/usr/lib
+	install -d debian/edgeai-tiovx-kernels-dev/usr/include
+	if [ -L staging/usr/lib/libedgeai-tiovx-kernels.so ]; then \
+	    cp -a staging/usr/lib/libedgeai-tiovx-kernels.so \
+	        debian/edgeai-tiovx-kernels-dev/usr/lib/; \
+	else \
+	    ln -sf libedgeai-tiovx-kernels.so.0 \
+	        debian/edgeai-tiovx-kernels-dev/usr/lib/libedgeai-tiovx-kernels.so; \
+	fi
+	if [ -d staging/usr/include/edgeai-tiovx-kernels ]; then \
+	    install -d debian/edgeai-tiovx-kernels-dev/usr/include/edgeai-tiovx-kernels; \
+	    cp -a staging/usr/include/edgeai-tiovx-kernels/. \
+	        debian/edgeai-tiovx-kernels-dev/usr/include/edgeai-tiovx-kernels/; \
+	fi
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:

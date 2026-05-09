@@ -52,7 +52,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libfreetype6-dev \
     libpam0g-dev \
     libyaml-cpp-dev \
-    libglib2.0-dev \
     \
     # Architecture-independent (arch:all) headers needed by vision_apps SRV GPU kernel.
     # These are copied into the arm64 sysroot further below.
@@ -161,6 +160,10 @@ RUN mkdir -p /opt/arm64-sysroot/usr && \
         libc6-dev:arm64 \
         libstdc++6:arm64 \
         libstdc++-13-dev:arm64 \
+        \
+        # yaml-cpp arm64 — needed for edgeai-dl-inferer
+        libyaml-cpp-dev:arm64 \
+        \
     && for f in /tmp/*.deb; do \
            dpkg-deb -x "${f}" /opt/arm64-sysroot/; \
            rm "${f}"; \

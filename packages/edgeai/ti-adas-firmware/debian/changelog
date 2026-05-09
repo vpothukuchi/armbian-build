@@ -1,0 +1,8 @@
+ti-adas-firmware (1.0.0-1) noble; urgency=medium
+
+  * Initial packaging of TI vision_apps RTOS firmware for j784s4-evm.
+    Built from psdk_fw.git SRCREV 579af7d6 (PSDK Analytics 11.02).
+    Includes R5F MCU (mcu2_0/1, mcu3_0/1, mcu4_0/1) and C7x DSP
+    (c7x_1/2/3/4) firmware, both unsigned and signed variants.
+
+ -- Vijay Pothukuchi <vijayp@ti.com>  Thu, 08 May 2025 00:00:00 +0000

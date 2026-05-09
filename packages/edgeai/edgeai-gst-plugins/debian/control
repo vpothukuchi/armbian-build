@@ -1,0 +1,26 @@
+Source: edgeai-gst-plugins
+Section: libs
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/TexasInstruments/edgeai-gst-plugins
+
+Package: edgeai-gst-plugins
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libstdc++6,
+ edgeai-tiovx-modules,
+ edgeai-apps-utils,
+ edgeai-dl-inferer,
+ ti-tidl-osrt,
+ libgstreamer1.0-0,
+ libgstreamer-plugins-base1.0-0
+Description: TI EdgeAI GStreamer plugins
+ Custom GStreamer elements that offload compute to hardware accelerators
+ and DSPs on TI K3 devices.  Provides GStreamer 1.0 plugins for TI EdgeAI
+ pipelines.
+ .
+ Plugins are installed to /usr/lib/gstreamer-1.0/ for automatic discovery
+ by gstreamer.  Also installs source at /opt/edgeai-gst-plugins/.

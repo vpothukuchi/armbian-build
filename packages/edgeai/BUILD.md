@@ -7,17 +7,28 @@ them into an Armbian image for the j784s4-evm (and compatible) boards.
 
 ```
 B1  Armbian base image   — compile.sh (kernel, u-boot, firmware only)
-A1  ti-rpmsg-char        — autotools source build         ─┐
-    ti-tidl-osrt         — TFLite + ONNX RT source build   │ EdgeAI packages
-A2  ti-vision-apps       — SDK source build (needs A1)     │ (no dependency
-A3  ti-tidl              — arm-tidl delegates (needs A1+A2)─┘  on B1)
+A1  ti-rpmsg-char        — autotools source build          ─┐
+    ti-tidl-osrt         — TFLite + ONNX RT source build    │
+A2  ti-vision-apps       — SDK source build (needs A1)      │ TI base packages
+A3  ti-tidl              — arm-tidl delegates (A1+A2)       │ (no dependency
+FW  ti-adas-firmware     — R5F MCU + C7x DSP firmware blobs │  on B1)
+E1  edgeai-apps-utils    — NEON utility library (A2)        │
+E2  edgeai-tiovx-kernels — OpenVX kernels (A2+E1)          │
+    edgeai-dl-inferer    — DL inference abstraction (A1+E1) ─┘
 B2  Final Armbian image  — compile.sh + ENABLE_EXTENSIONS=ti-debpkgs
 ```
 
-B1 and A1/A2/A3 have no dependency on each other. B1 runs first because it
-is the longest step (~60 min). A1→A2→A3 must be sequential (each overlays
-the previous phase's `.deb` files into the build sysroot before compiling).
-B2 consumes all outputs: the B1 kernel/u-boot and all nine EdgeAI `.deb` files.
+B1 and A/E phases have no dependency on each other. B1 runs first because it
+is the longest step (~60 min). A1→A2→A3→E1→E2 must be sequential (each phase
+overlays the previous phase's `.deb` files into the build sysroot before
+compiling). B2 consumes all outputs: the B1 kernel/u-boot and all EdgeAI `.deb`
+files.
+
+> **Note:** E3 (edgeai-tiovx-modules, edgeai-tiovx-apps) and E4
+> (edgeai-gst-plugins, edgeai-gst-apps) build scripts exist under
+> `packages/edgeai/` but are **not** built by default. They are not required
+> for the edgeai-robotics-sdk target (which uses GStreamer from Ubuntu repos
+> and fetches edgeai-gst-apps via CPM at build time).
 
 The top-level orchestration script is `/mnt/DATA/UBUNTU/build_armbian.sh`.
 
@@ -36,6 +47,18 @@ The top-level orchestration script is `/mnt/DATA/UBUNTU/build_armbian.sh`.
 | `ti-vision-apps-data_11.02.03-1_arm64.deb` | A2 | Demo binaries + data files |
 | `ti-tidl_1.0.0-1_arm64.deb` | A3 | TIDL delegate .so libraries |
 | `ti-tidl-dev_1.0.0-1_arm64.deb` | A3 | TIDL delegate headers |
+| `ti-adas-firmware_1.0.0-1_all.deb` | FW | R5F MCU + C7x DSP RTOS firmware for vision_apps |
+| `edgeai-apps-utils_1.0.0-1_arm64.deb` | E1 | NEON utility lib + `/opt/edgeai-apps-utils/` |
+| `edgeai-apps-utils-dev_1.0.0-1_arm64.deb` | E1 | edgeai-apps-utils headers + link stubs |
+| `edgeai-tiovx-kernels_1.0.0-1_arm64.deb` | E2 | OpenVX custom kernels |
+| `edgeai-tiovx-kernels-dev_1.0.0-1_arm64.deb` | E2 | OpenVX kernels headers |
+| `edgeai-dl-inferer_1.0.0-1_arm64.deb` | E2 | DL inference abstraction library |
+| `edgeai-dl-inferer-dev_1.0.0-1_arm64.deb` | E2 | DL inferer headers |
+| `edgeai-tiovx-modules_1.0.0-1_arm64.deb` | E3 *(optional)* | OpenVX pipeline modules |
+| `edgeai-tiovx-modules-dev_1.0.0-1_arm64.deb` | E3 *(optional)* | OpenVX modules headers |
+| `edgeai-tiovx-apps_1.0.0-1_arm64.deb` | E3 *(optional)* | OpenVX demo apps + `/opt/edgeai-tiovx-apps/` |
+| `edgeai-gst-plugins_1.0.0-1_arm64.deb` | E4 *(optional)* | GStreamer HW-offload plugins |
+| `edgeai-gst-apps_1.0.0-1_arm64.deb` | E4 *(optional)* | GStreamer demos + `/opt/edgeai-gst-apps/` |
 
 ---
 
@@ -69,12 +92,14 @@ bash /mnt/DATA/UBUNTU/build_armbian.sh --skip-kernel --skip-image \
 
 | Option | Effect |
 |--------|--------|
-| `--skip-kernel` | Skip Armbian base image build |
-| `--skip-edgeai` | Skip all EdgeAI package builds (A1+A2+A3) |
-| `--skip-base-pkgs` | Skip ti-rpmsg-char + ti-tidl-osrt only |
-| `--skip-vision-apps` | Skip ti-vision-apps only |
-| `--skip-tidl` | Skip ti-tidl only |
-| `--skip-image` | Skip final Armbian image build |
+| `--skip-kernel` | Skip Armbian base image build (B1) |
+| `--skip-edgeai` | Skip all EdgeAI package builds (A1+A2+A3+FW+E1+E2) |
+| `--skip-base-pkgs` | Skip ti-rpmsg-char + ti-tidl-osrt (A1) only |
+| `--skip-vision-apps` | Skip ti-vision-apps (A2) only |
+| `--skip-tidl` | Skip ti-tidl (A3) only |
+| `--skip-fw` | Skip firmware package (ti-adas-firmware) |
+| `--skip-edgeai-pkgs` | Skip E1+E2 packages (edgeai-apps-utils, edgeai-tiovx-kernels, edgeai-dl-inferer) |
+| `--skip-image` | Skip final Armbian image build (B2) |
 | `--skip-proxy` | Skip TI proxy setup (outside TI network) |
 | `--mirror <path>` | Local Yocto git2/ mirror (faster, offline-capable) |
 | `--sdk-path <path>` | Local workspace dir for the ti-vision-apps SDK source repos. **Do not clone anything manually** — the build system runs `repo init` + `repo sync` into this directory on the first run (~15 min, ~2 GB). On subsequent runs the existing workspace is reused. Provide an empty directory, or the path from a previous build. |
@@ -113,7 +138,23 @@ cd packages/edgeai
 # A3 — uses Docker-internal /opt/arm64-sysroot; overlays A1+A2 debs automatically
 ./docker-build.sh ti-tidl
 
-# Build all in one shot (A1 → A2 → A3)
+# Firmware — pre-built RTOS blobs, no sysroot needed
+./docker-build.sh ti-adas-firmware
+
+# E1 — overlays A2 dev headers into sysroot
+./docker-build.sh edgeai-apps-utils
+
+# E2 — overlays E1 debs in addition to A1+A2
+./docker-build.sh edgeai-tiovx-kernels
+./docker-build.sh edgeai-dl-inferer
+
+# E3/E4 (optional — not needed for edgeai-robotics-sdk target):
+./docker-build.sh edgeai-tiovx-modules
+./docker-build.sh edgeai-tiovx-apps
+./docker-build.sh edgeai-gst-plugins
+./docker-build.sh edgeai-gst-apps
+
+# Build all in one shot (A1 → A2 → A3 → FW → E1 → E2)
 ./docker-build.sh --sdk-path /opt/ti-vision-apps-sdk all
 
 # Force Docker image rebuild
@@ -122,11 +163,12 @@ cd packages/edgeai
 
 ### What docker-build.sh does between phases
 
-Before A2 runs inside the container, `docker-build.sh` automatically extracts
-the A1 `.deb` files into the container's `/opt/arm64-sysroot` so that
-`ti_rpmsg_char.h` is visible to the vision_apps build system. Before A3, it
-similarly extracts all A1+A2 `.deb` files. This is our equivalent of Yocto's
-`do_populate_sysroot` mechanism.
+Before each phase, `docker-build.sh` automatically extracts the previous
+phase's `.deb` files into the container's `/opt/arm64-sysroot` so that headers
+and shared libraries from earlier phases are visible to the next phase's build
+system. For example, before E2, it overlays A2 + E1 dev headers so that
+`edgeai-tiovx-kernels` can find `edgeai-apps-utils` headers. This is our
+equivalent of Yocto's `do_populate_sysroot` mechanism.
 
 ### Git mirror directory
 
@@ -183,9 +225,10 @@ cp packages/edgeai/*.deb output/debs/extra/
     ENABLE_EXTENSIONS=ti-debpkgs
 ```
 
-The `ti-debpkgs` extension (`extensions/ti-debpkgs.sh`) installs all nine
-`.deb` files into the arm64 chroot via `apt-get install` during rootfs
-creation, which resolves cross-package dependencies automatically.
+The `ti-debpkgs` extension (`extensions/ti-debpkgs.sh`) installs all
+`.deb` files found in `output/debs/extra/` into the arm64 chroot via
+`apt-get install` during rootfs creation, which resolves cross-package
+dependencies automatically.
 
 ---
 
@@ -196,10 +239,12 @@ The B and A pipelines are independent until B2. Only rebuild what changed:
 | What changed | What to rebuild |
 |---|---|
 | Kernel config, u-boot, board patches | B1 only (then B2) |
-| ti-rpmsg-char source | `--skip-kernel --skip-vision-apps --skip-tidl` then B2 |
-| ti-tidl-osrt source or patches | `--skip-kernel --skip-vision-apps --skip-tidl` then B2 |
-| ti-vision-apps source | `--skip-kernel --skip-base-pkgs` (A2+A3+B2) |
-| ti-tidl source | `--skip-kernel --skip-base-pkgs --skip-vision-apps` (A3+B2) |
+| ti-rpmsg-char source | `--skip-kernel --skip-vision-apps --skip-tidl --skip-edgeai-pkgs` then B2 |
+| ti-tidl-osrt source or patches | `--skip-kernel --skip-vision-apps --skip-tidl --skip-edgeai-pkgs` then B2 |
+| ti-vision-apps source | `--skip-kernel --skip-base-pkgs` (A2+A3+E1+E2+B2) |
+| ti-tidl source | `--skip-kernel --skip-base-pkgs --skip-vision-apps` (A3+E1+E2+B2) |
+| edgeai-apps-utils source | `--skip-kernel --skip-base-pkgs --skip-vision-apps --skip-tidl --skip-fw` (E1+E2+B2) |
+| edgeai-tiovx-kernels or edgeai-dl-inferer source | `--skip-kernel --skip-base-pkgs --skip-vision-apps --skip-tidl` then B2 |
 | Only Debian packaging metadata | Rebuild the affected package only, then B2 |
 | Everything | Full build (no skip flags) |
 

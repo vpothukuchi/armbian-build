@@ -621,7 +621,12 @@ _stage_onnxrt_prebuilt() {
     cp "${tmp}/libonnxruntime.so.1.15.0" "${STAGING_DIR}/lib/"
     ln -sf "libonnxruntime.so.1.15.0" "${STAGING_DIR}/lib/libonnxruntime.so"
     rm -rf "${tmp}/onnxruntime/csharp" 2>/dev/null || true
-    cp -r "${tmp}/onnxruntime" "${STAGING_DIR}/include/"
+    # Install headers at the Yocto-compatible path:
+    # usr/include/onnxruntime/include/onnxruntime/core/session/...
+    # (matching the layout expected by edgeai-dl-inferer CMake:
+    #  ONNXRT_INSTALL_DIR=${FS}/usr/include/onnxruntime → include/onnxruntime)
+    mkdir -p "${STAGING_DIR}/include/onnxruntime/include"
+    cp -r "${tmp}/onnxruntime" "${STAGING_DIR}/include/onnxruntime/include/"
 }
 
 _stage_onnxrt_source() {
@@ -637,20 +642,21 @@ _stage_onnxrt_source() {
     soname=$(basename "${so}")
     ln -sf "${soname}" "${STAGING_DIR}/lib/libonnxruntime.so"
 
-    # Headers: include/onnxruntime/ from the source tree
+    # Headers: staged at Yocto-compatible path
+    # usr/include/onnxruntime/include/onnxruntime/core/session/...
+    mkdir -p "${STAGING_DIR}/include/onnxruntime/include"
     if [[ -d "${src}/include/onnxruntime" ]]; then
-        cp -r "${src}/include/onnxruntime" "${STAGING_DIR}/include/"
+        cp -r "${src}/include/onnxruntime" "${STAGING_DIR}/include/onnxruntime/include/"
     elif [[ -d "${src}/include" ]]; then
-        mkdir -p "${STAGING_DIR}/include/onnxruntime"
         find "${src}/include" -name "*.h" \
             | while read -r h; do
                 rel="${h#${src}/include/}"
-                install -Dm644 "$h" "${STAGING_DIR}/include/onnxruntime/${rel}"
+                install -Dm644 "$h" "${STAGING_DIR}/include/onnxruntime/include/${rel}"
             done
     else
         warn "ONNX RT headers not found in ${src}/include"
     fi
-    rm -rf "${STAGING_DIR}/include/onnxruntime/csharp" 2>/dev/null || true
+    rm -rf "${STAGING_DIR}/include/onnxruntime/include/onnxruntime/csharp" 2>/dev/null || true
 }
 
 # ---------------------------------------------------------------------------

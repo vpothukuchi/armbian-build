@@ -1,0 +1,26 @@
+Source: ti-adas-firmware
+Section: misc
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://git.ti.com/cgit/processor-sdk/psdk_fw
+
+Package: ti-adas-firmware
+Architecture: all
+Depends: ${misc:Depends}
+Description: TI vision_apps RTOS firmware for j784s4-evm
+ Pre-built RTOS firmware images for the heterogeneous cores on the TI
+ J784S4 SoC: six R5F MCU cores and four C7x DSP cores.  These firmware
+ images implement the RTOS side of the vision_apps OpenVX framework and
+ must be loaded by the Linux remoteproc driver before any vision_apps or
+ EdgeAI workloads can run.
+ .
+ Firmware files are installed to /usr/lib/firmware/vision_apps_evm/ and
+ update-alternatives symlinks are created at /usr/lib/firmware/ under the
+ canonical remoteproc names (e.g. j784s4-main-r5f0_0-fw, j784s4-c71_0-fw).
+ .
+ Both unsigned (.out) and signed (.out.signed) variants are included.
+ The -sec symlinks reference the signed binaries.
+ .
+ Corresponds to: ti-adas-firmware (Yocto meta-edgeai, PSDK Analytics 11.02).

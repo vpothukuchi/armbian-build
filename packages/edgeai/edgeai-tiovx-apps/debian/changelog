@@ -1,0 +1,6 @@
+edgeai-tiovx-apps (1.0.0-1) noble; urgency=medium
+
+  * Initial packaging of TI EdgeAI OpenVX demo applications from source.
+    Built from SRCREV cb123fd (PSDK Analytics 11.02).
+
+ -- Vijay Pothukuchi <vijayp@ti.com>  Thu, 08 May 2025 00:00:00 +0000

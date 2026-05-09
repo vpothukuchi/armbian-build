@@ -1,0 +1,9 @@
+src/
+staging/
+build-from-source.log
+debian/edgeai-dl-inferer/
+debian/edgeai-dl-inferer-dev/
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/*.substvars

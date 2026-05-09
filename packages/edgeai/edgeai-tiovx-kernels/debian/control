@@ -1,0 +1,28 @@
+Source: edgeai-tiovx-kernels
+Section: libs
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://git.ti.com/cgit/edgeai/edgeai-tiovx-kernels
+
+Package: edgeai-tiovx-kernels
+Architecture: arm64
+Depends: ${misc:Depends},
+ libc6,
+ libstdc++6,
+ libtivision-apps11.2.0,
+ edgeai-apps-utils
+Description: TI EdgeAI OpenVX target kernels
+ ARMv8 NEON-optimised OpenVX target kernel implementations for TI EdgeAI
+ pipelines.  Provides colour conversion, DL pre/post-processing and image
+ processing kernels as OpenVX nodes.
+ .
+ Provides libedgeai-tiovx-kernels.so and source at /opt/edgeai-tiovx-kernels/.
+
+Package: edgeai-tiovx-kernels-dev
+Architecture: arm64
+Depends: ${misc:Depends}, edgeai-tiovx-kernels (= ${binary:Version})
+Description: TI EdgeAI OpenVX target kernels - development files
+ Headers and unversioned .so symlink for building against
+ edgeai-tiovx-kernels.

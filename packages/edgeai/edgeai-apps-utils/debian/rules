@@ -1,0 +1,50 @@
+#!/usr/bin/make -f
+# debian/rules for edgeai-apps-utils
+# Artifacts are staged by build-from-source.sh into staging/
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+	# Nothing — configured by build-from-source.sh
+
+override_dh_auto_build:
+	# Nothing — built by build-from-source.sh
+
+override_dh_auto_install:
+	# Runtime package: versioned shared library + soname symlink + /opt source tree
+	install -d debian/edgeai-apps-utils/usr/lib
+	# Copy all versioned .so files (.so.N, .so.N.M.P) but not the unversioned .so
+	find staging/usr/lib -name "libedgeai-apps-utils.so.*" \
+	    -exec cp -a {} debian/edgeai-apps-utils/usr/lib/ \;
+	# Source tree at /opt (if installed by cmake INSTALL_SRC=ON)
+	if [ -d staging/opt/edgeai-apps-utils ]; then \
+	    install -d debian/edgeai-apps-utils/opt/edgeai-apps-utils; \
+	    cp -a staging/opt/edgeai-apps-utils/. \
+	        debian/edgeai-apps-utils/opt/edgeai-apps-utils/; \
+	fi
+
+	# Dev package: unversioned .so symlink + headers
+	install -d debian/edgeai-apps-utils-dev/usr/lib
+	install -d debian/edgeai-apps-utils-dev/usr/include
+	# Unversioned symlink (libedgeai-apps-utils.so → libedgeai-apps-utils.so.0)
+	if [ -L staging/usr/lib/libedgeai-apps-utils.so ]; then \
+	    cp -a staging/usr/lib/libedgeai-apps-utils.so \
+	        debian/edgeai-apps-utils-dev/usr/lib/; \
+	else \
+	    ln -sf libedgeai-apps-utils.so.0 \
+	        debian/edgeai-apps-utils-dev/usr/lib/libedgeai-apps-utils.so; \
+	fi
+	# Headers
+	if [ -d staging/usr/include/edgeai-apps-utils ]; then \
+	    install -d debian/edgeai-apps-utils-dev/usr/include/edgeai-apps-utils; \
+	    cp -a staging/usr/include/edgeai-apps-utils/. \
+	        debian/edgeai-apps-utils-dev/usr/include/edgeai-apps-utils/; \
+	fi
+
+override_dh_strip:
+	dh_strip --no-automatic-dbgsym
+
+override_dh_shlibdeps:
+	# Skip shlibdeps: arm64 binaries on x86_64 host.
+	# Runtime dependencies declared explicitly in debian/control.
