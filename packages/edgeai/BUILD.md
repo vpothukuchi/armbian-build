@@ -30,7 +30,9 @@ files.
 > for the edgeai-robotics-sdk target (which uses GStreamer from Ubuntu repos
 > and fetches edgeai-gst-apps via CPM at build time).
 
-The top-level orchestration script is `/mnt/DATA/UBUNTU/build_armbian.sh`.
+The top-level orchestration script is `packages/edgeai/build_armbian.sh`
+(inside this repository). It self-derives the armbian-build root from its own
+path and can be invoked from any working directory.
 
 ---
 
@@ -64,27 +66,26 @@ The top-level orchestration script is `/mnt/DATA/UBUNTU/build_armbian.sh`.
 
 ## Full orchestrated build (recommended)
 
-Use `build_armbian.sh` from the `armbian-build` directory. It handles the
-full sequence, proxy setup, and staging automatically.
+Use `packages/edgeai/build_armbian.sh` to run the full sequence. The script
+self-derives the armbian-build root from its own path, so it can be invoked
+from any working directory. It handles proxy setup and deb staging automatically.
 
 ```bash
-cd /mnt/DATA/UBUNTU/armbian-build
-
 # Full build with local git mirror and SDK path:
-bash /mnt/DATA/UBUNTU/build_armbian.sh \
+bash packages/edgeai/build_armbian.sh \
     --mirror   /mnt/DATA/YOCTO/yocto-build/downloads/git2 \
     --sdk-path /opt/ti-vision-apps-sdk
 
 # Skip B1 (kernel already built), rebuild EdgeAI packages + final image:
-bash /mnt/DATA/UBUNTU/build_armbian.sh --skip-kernel \
+bash packages/edgeai/build_armbian.sh --skip-kernel \
     --mirror   /mnt/DATA/YOCTO/yocto-build/downloads/git2 \
     --sdk-path /opt/ti-vision-apps-sdk
 
 # All debs already built — just regenerate the final image:
-bash /mnt/DATA/UBUNTU/build_armbian.sh --skip-kernel --skip-edgeai
+bash packages/edgeai/build_armbian.sh --skip-kernel --skip-edgeai
 
 # EdgeAI packages only (no Armbian builds at all):
-bash /mnt/DATA/UBUNTU/build_armbian.sh --skip-kernel --skip-image \
+bash packages/edgeai/build_armbian.sh --skip-kernel --skip-image \
     --sdk-path /opt/ti-vision-apps-sdk
 ```
 
@@ -262,12 +263,12 @@ cd packages/edgeai/ti-tidl-osrt
 
 > **Not tested end-to-end. Use Docker for production builds.**
 
-See the prerequisites section at the top of `build_armbian.sh` for the
-complete list of host packages, OE compat shim setup, and arm64 sysroot
+See the prerequisites section at the top of `packages/edgeai/build_armbian.sh`
+for the complete list of host packages, OE compat shim setup, and arm64 sysroot
 creation steps. Once prerequisites are met, invoke:
 
 ```bash
-bash /mnt/DATA/UBUNTU/build_armbian.sh --no-docker \
+bash packages/edgeai/build_armbian.sh --no-docker \
     --sysroot /opt/arm64-sysroot \
     --sdk-path /opt/ti-vision-apps-sdk
 ```
