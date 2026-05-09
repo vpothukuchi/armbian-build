@@ -1,3 +1,11 @@
+ti-adas-firmware (1.0.0-2) noble; urgency=medium
+
+  * postinst/prerm: remove .out.signed update-alternatives entries;
+    signed firmware blobs are not included in the package, causing
+    update-alternatives to fail with "path doesn't exist" error.
+
+ -- Vijay Pothukuchi <vijayp@ti.com>  Fri, 09 May 2025 00:00:00 +0000
+
 ti-adas-firmware (1.0.0-1) noble; urgency=medium
 
   * Initial packaging of TI vision_apps RTOS firmware for j784s4-evm.
