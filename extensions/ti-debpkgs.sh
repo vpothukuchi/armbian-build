@@ -57,6 +57,12 @@ function pre_customize_image__install_edgeai_debs() {
     declare -g if_error_detail_message="EdgeAI deb installation failed ${BOARD} ${RELEASE}"
     DONT_MAINTAIN_APT_CACHE="yes" \
         chroot_sdcard_apt_get --no-install-recommends install "${debs_in_chroot[@]}"
+
+    # Remove staged .deb files from /root/ — they were only needed for apt resolution
+    display_alert "Cleaning up staged EdgeAI debs from /root/" "" "info"
+    for deb in "${debs_in_chroot[@]}"; do
+        run_host_command_logged rm -f "${SDCARD}${deb}"
+    done
 }
 
 function pre_customize_image__enable_services() {

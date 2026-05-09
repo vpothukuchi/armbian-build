@@ -25,6 +25,18 @@ override_dh_auto_install:
 	cp -a staging/lib/*.a   debian/ti-tidl-osrt-dev/usr/lib/ 2>/dev/null || true
 	cp -a staging/lib/tflite_2.12 debian/ti-tidl-osrt-dev/usr/lib/ 2>/dev/null || true
 
+	# Gap 4: Install TVM C++ headers to /usr/include/tvm/tvm/ (dev package).
+	# Mirrors the Yocto ti-tidl-osrt.bb recipe which copies headers from the
+	# Python wheel to $(includedir)/tvm/tvm/ so consumer cmake files (e.g.
+	# edgeai-dl-inferer/cmake/common.cmake) can find them at
+	# $${TVMRT_INSTALL_DIR}/tvm/include/ with TVMRT_INSTALL_DIR=/usr/include/tvm.
+	if [ -d staging/python/tvm ]; then \
+	    install -d debian/ti-tidl-osrt-dev/usr/include/tvm/tvm; \
+	    cd staging/python/tvm && \
+	        find . -name "*.h*" | \
+	        xargs cp --parents -t $(CURDIR)/debian/ti-tidl-osrt-dev/usr/include/tvm/tvm/; \
+	fi
+
 override_dh_strip:
 	# Prebuilt binaries — do not strip (they are already stripped or signed)
 	dh_strip --no-automatic-dbgsym

@@ -21,8 +21,12 @@
 #     edgeai-apps-utils     ARMv8 NEON utility functions
 #   E2 phase (needs E1 overlaid):
 #     edgeai-tiovx-kernels  OpenVX target kernels
-#     edgeai-dl-inferer     DL inference abstraction library
 #   all              Build all packages in correct dependency order
+#
+# Note: edgeai-dl-inferer is NOT included in the default build. The
+# edgeai-robotics-sdk fetches and builds it from source via CMake CPM at
+# build time, so a pre-installed Debian package provides no benefit. It can
+# still be built explicitly: ./docker-build.sh edgeai-dl-inferer
 #
 # Note: edgeai-tiovx-modules, edgeai-tiovx-apps, edgeai-gst-plugins, and
 # edgeai-gst-apps are NOT built — they are demo/app packages not needed for
@@ -168,7 +172,8 @@ if [[ -z "${TARGET}" && "${DROP_SHELL}" -eq 0 ]]; then
     echo "  Packages: ti-rpmsg-char ti-tidl-osrt ti-vision-apps ti-tidl" >&2
     echo "            ti-adas-firmware" >&2
     echo "            edgeai-apps-utils" >&2
-    echo "            edgeai-tiovx-kernels edgeai-dl-inferer" >&2
+    echo "            edgeai-tiovx-kernels" >&2
+    echo "            edgeai-dl-inferer  (optional — see header comment)" >&2
     echo "       $0 --help" >&2
     exit 1
 fi
@@ -590,7 +595,8 @@ case "${TARGET}" in
 
         # E2 — depend on E1 dev headers overlaid into sysroot
         build_edgeai_tiovx_kernels
-        build_edgeai_dl_inferer
+        # edgeai-dl-inferer intentionally omitted: edgeai-robotics-sdk
+        # fetches and builds it via CPM; no Debian package needed.
         ;;
 esac
 

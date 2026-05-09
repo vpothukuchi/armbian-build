@@ -1,0 +1,15 @@
+diff --git a/onnxruntime/core/session/inference_session.cc b/onnxruntime/core/session/inference_session.cc
+--- a/onnxruntime/core/session/inference_session.cc
++++ b/onnxruntime/core/session/inference_session.cc
+@@ -2683,9 +2683,11 @@ std::vector<std::pair<std::string, uint64_t>> InferenceSession::get_TI_benchmark
+   char *node_name;
+   void *node_data;
+   const SequentialExecutionPlan& seq_exec_plan = *session_state_->GetExecutionPlan();
+   const auto& exec_plan_vec = seq_exec_plan.execution_plan;
++  (void)exec_plan_vec;
+   const auto& graph_viewer= session_state_->GetGraphViewer();
+   const Graph& node_graph = graph_viewer.GetGraph();
+   const std::string& name_ = node_graph.Name();
++  (void)name_;
+   const std::vector<NodeIndex>& node_indexs = graph_viewer.GetNodesInTopologicalOrder();
+   Status status;

@@ -473,7 +473,7 @@ echo "  Mode: $([ "${USE_DOCKER}" -eq 1 ] && echo 'Docker' || echo 'No-Docker (U
 [[ "${SKIP_TIDL}" -eq 0 ]]         && echo "  A3) ti-tidl"
 [[ "${SKIP_FW}" -eq 0 ]]           && echo "  FW) ti-adas-firmware"
 [[ "${SKIP_EDGEAI_PKGS}" -eq 0 ]]  && echo "  E1) edgeai-apps-utils"
-[[ "${SKIP_EDGEAI_PKGS}" -eq 0 ]]  && echo "  E2) edgeai-tiovx-kernels + edgeai-dl-inferer"
+[[ "${SKIP_EDGEAI_PKGS}" -eq 0 ]]  && echo "  E2) edgeai-tiovx-kernels"
 [[ "${SKIP_IMAGE}" -eq 0 ]]        && echo "  B2) Final Armbian image (all EdgeAI debs)"
 [[ -n "${MIRROR_DIR}" ]]    && echo "  Mirror:  ${MIRROR_DIR}"
 [[ -n "${SDK_PATH}" ]]      && echo "  SDK:     ${SDK_PATH}"
@@ -601,7 +601,10 @@ fi
 
 # ---------------------------------------------------------------------------
 # E1 — edgeai-apps-utils
-# E2 — edgeai-tiovx-kernels + edgeai-dl-inferer (depend on E1)
+# E2 — edgeai-tiovx-kernels (depends on E1)
+# Note: edgeai-dl-inferer is NOT built here; edgeai-robotics-sdk fetches and
+# builds it from source via CPM at build time, so a pre-installed package
+# provides no benefit.
 # ---------------------------------------------------------------------------
 if [[ "${SKIP_EDGEAI_PKGS}" -eq 0 ]]; then
     echo ""
@@ -618,13 +621,12 @@ if [[ "${SKIP_EDGEAI_PKGS}" -eq 0 ]]; then
     fi
 
     echo ""
-    echo "=== E2: edgeai-tiovx-kernels + edgeai-dl-inferer ==="
+    echo "=== E2: edgeai-tiovx-kernels ==="
 
     if [[ "${USE_DOCKER}" -eq 1 ]]; then
         DOCKER_ARGS=()
         readarray -t DOCKER_ARGS < <(base_docker_args)
         bash "${DOCKER_BUILD}" "${DOCKER_ARGS[@]+"${DOCKER_ARGS[@]}"}" edgeai-tiovx-kernels
-        bash "${DOCKER_BUILD}" "${DOCKER_ARGS[@]+"${DOCKER_ARGS[@]}"}" edgeai-dl-inferer
     else
         e2_args=(--sysroot "${SYSROOT:-/opt/arm64-sysroot}")
         [[ -n "${MIRROR_DIR}" ]] && e2_args+=(--mirror "${MIRROR_DIR}")
@@ -634,7 +636,6 @@ if [[ "${SKIP_EDGEAI_PKGS}" -eq 0 ]]; then
         overlay_deb_into_sysroot "edgeai-apps-utils-dev_*.deb" "${SYSROOT:-/opt/arm64-sysroot}"
 
         (cd packages/edgeai/edgeai-tiovx-kernels && ./build-from-source.sh "${e2_args[@]}")
-        (cd packages/edgeai/edgeai-dl-inferer    && ./build-from-source.sh "${e2_args[@]}")
     fi
 fi
 

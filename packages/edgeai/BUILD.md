@@ -13,8 +13,7 @@ A2  ti-vision-apps       — SDK source build (needs A1)      │ TI base packag
 A3  ti-tidl              — arm-tidl delegates (A1+A2)       │ (no dependency
 FW  ti-adas-firmware     — R5F MCU + C7x DSP firmware blobs │  on B1)
 E1  edgeai-apps-utils    — NEON utility library (A2)        │
-E2  edgeai-tiovx-kernels — OpenVX kernels (A2+E1)          │
-    edgeai-dl-inferer    — DL inference abstraction (A1+E1) ─┘
+E2  edgeai-tiovx-kernels — OpenVX kernels (A2+E1)          ─┘
 B2  Final Armbian image  — compile.sh + ENABLE_EXTENSIONS=ti-debpkgs
 ```
 
@@ -24,6 +23,12 @@ overlays the previous phase's `.deb` files into the build sysroot before
 compiling). B2 consumes all outputs: the B1 kernel/u-boot and all EdgeAI `.deb`
 files.
 
+> **Note:** `edgeai-dl-inferer` is **not** built as a Debian package by
+> default. The `edgeai-robotics-sdk` always fetches and builds it from source
+> via CMake CPM (`CPMAddPackage`) at build time, so a pre-installed package
+> provides no benefit. The `build-from-source.sh` and `docker-build.sh` support
+> it as an explicit optional target if needed for other consumers.
+>
 > **Note:** E3 (edgeai-tiovx-modules, edgeai-tiovx-apps) and E4
 > (edgeai-gst-plugins, edgeai-gst-apps) build scripts exist under
 > `packages/edgeai/` but are **not** built by default. They are not required
@@ -54,8 +59,8 @@ path and can be invoked from any working directory.
 | `edgeai-apps-utils-dev_1.0.0-1_arm64.deb` | E1 | edgeai-apps-utils headers + link stubs |
 | `edgeai-tiovx-kernels_1.0.0-1_arm64.deb` | E2 | OpenVX custom kernels |
 | `edgeai-tiovx-kernels-dev_1.0.0-1_arm64.deb` | E2 | OpenVX kernels headers |
-| `edgeai-dl-inferer_1.0.0-1_arm64.deb` | E2 | DL inference abstraction library |
-| `edgeai-dl-inferer-dev_1.0.0-1_arm64.deb` | E2 | DL inferer headers |
+| `edgeai-dl-inferer_1.0.0-1_arm64.deb` | *(optional)* | DL inference abstraction library — fetched via CPM by edgeai-robotics-sdk; no image install needed |
+| `edgeai-dl-inferer-dev_1.0.0-1_arm64.deb` | *(optional)* | DL inferer headers |
 | `edgeai-tiovx-modules_1.0.0-1_arm64.deb` | E3 *(optional)* | OpenVX pipeline modules |
 | `edgeai-tiovx-modules-dev_1.0.0-1_arm64.deb` | E3 *(optional)* | OpenVX modules headers |
 | `edgeai-tiovx-apps_1.0.0-1_arm64.deb` | E3 *(optional)* | OpenVX demo apps + `/opt/edgeai-tiovx-apps/` |
@@ -99,7 +104,7 @@ bash packages/edgeai/build_armbian.sh --skip-kernel --skip-image \
 | `--skip-vision-apps` | Skip ti-vision-apps (A2) only |
 | `--skip-tidl` | Skip ti-tidl (A3) only |
 | `--skip-fw` | Skip firmware package (ti-adas-firmware) |
-| `--skip-edgeai-pkgs` | Skip E1+E2 packages (edgeai-apps-utils, edgeai-tiovx-kernels, edgeai-dl-inferer) |
+| `--skip-edgeai-pkgs` | Skip E1+E2 packages (edgeai-apps-utils, edgeai-tiovx-kernels) |
 | `--skip-image` | Skip final Armbian image build (B2) |
 | `--skip-proxy` | Skip TI proxy setup (outside TI network) |
 | `--mirror <path>` | Local Yocto git2/ mirror (faster, offline-capable) |
@@ -147,6 +152,8 @@ cd packages/edgeai
 
 # E2 — overlays E1 debs in addition to A1+A2
 ./docker-build.sh edgeai-tiovx-kernels
+
+# edgeai-dl-inferer (optional — edgeai-robotics-sdk fetches it via CPM)
 ./docker-build.sh edgeai-dl-inferer
 
 # E3/E4 (optional — not needed for edgeai-robotics-sdk target):
@@ -245,7 +252,8 @@ The B and A pipelines are independent until B2. Only rebuild what changed:
 | ti-vision-apps source | `--skip-kernel --skip-base-pkgs` (A2+A3+E1+E2+B2) |
 | ti-tidl source | `--skip-kernel --skip-base-pkgs --skip-vision-apps` (A3+E1+E2+B2) |
 | edgeai-apps-utils source | `--skip-kernel --skip-base-pkgs --skip-vision-apps --skip-tidl --skip-fw` (E1+E2+B2) |
-| edgeai-tiovx-kernels or edgeai-dl-inferer source | `--skip-kernel --skip-base-pkgs --skip-vision-apps --skip-tidl` then B2 |
+| edgeai-tiovx-kernels source | `--skip-kernel --skip-base-pkgs --skip-vision-apps --skip-tidl` then B2 |
+| edgeai-dl-inferer source | Not applicable — not packaged; rebuilt by edgeai-robotics-sdk via CPM |
 | Only Debian packaging metadata | Rebuild the affected package only, then B2 |
 | Everything | Full build (no skip flags) |
 

@@ -386,6 +386,7 @@ build_onnxrt() {
         --build_wheel \
         --cmake_extra_defines \
             "CMAKE_TOOLCHAIN_FILE=${src}/cmake/tool.cmake" \
+            "onnxruntime_USE_TIDL=ON" \
         --path_to_protoc_exe "${protoc}" \
         --skip_tests \
         --parallel "${JOBS}"
