@@ -132,9 +132,9 @@ stage_artifacts() {
 
     info "Staging complete."
     info "  Runtime files:"
-    find "${STAGING_DIR}/runtime" ! -type d | sort | head -20
+    find "${STAGING_DIR}/runtime" ! -type d | sort | head -20 || true
     info "  Dev headers (first 5):"
-    find "${STAGING_DIR}/dev" -name "*.h" | sort | head -5
+    find "${STAGING_DIR}/dev" -name "*.h" | sort | head -5 || true
 }
 
 # ---------------------------------------------------------------------------
