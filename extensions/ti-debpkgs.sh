@@ -92,6 +92,10 @@ function pre_umount_final_image__disable_uboot_rproc() {
             echo "dorprocboot=0" >> "${SDCARD}/boot/uEnv.txt"
             display_alert "Disabled U-Boot remoteproc auto-boot" "dorprocboot=0" "info"
         fi
+        if ! grep -q "name_overlays" "${SDCARD}/boot/uEnv.txt"; then
+            echo "name_overlays=ti/k3-j784s4-vision-apps.dtbo" >> "${SDCARD}/boot/uEnv.txt"
+            display_alert "Added vision-apps DTS overlay" "k3-j784s4-vision-apps.dtbo" "info"
+        fi
     fi
 }
 

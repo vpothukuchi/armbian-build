@@ -1,0 +1,470 @@
+From 8c52a6a5976f68c01d21839583bcb9f15591c4cb Mon Sep 17 00:00:00 2001
+From: Lucas Weaver <l-weaver@ti.com>
+Date: Tue, 18 Oct 2022 09:23:02 -0500
+Subject: [PATCH] arm64: dts: ti: k3-j784s4: Add DTB overlay for vision apps
+ and EdgeAI
+
+Confine the memory map changes into a separate rtos-memory-map.dts
+which describes the common memory map for all RTOS remoteprocs.
+
+vision-apps.dtbo uses this and also disables capture and display
+related peripherals from Linux so that it can be used by RTOS.
+
+Also, Update the linux CMA region to allocate the required size in the
+same region as the tiovx shared memory region. This is required to allow
+the codec to access tiovx buffers through DMABUF IMPORT feature.
+
+Add overlay for RTOS memory map for edge ai with
+DSS and other pheriperals enabled
+
+Upstream-Status: Inappropriate [customization for edgeai]
+
+Signed-off-by: Aniket Limaye <a-limaye@ti.com>
+Signed-off-by: Rahul T R <r-ravikumar@ti.com>
+---
+ arch/arm64/boot/dts/ti/Makefile               |   2 +
+ .../boot/dts/ti/k3-j784s4-edgeai-apps.dtso    |  11 +
+ .../dts/ti/k3-j784s4-rtos-memory-map.dtsi     | 335 ++++++++++++++++++
+ .../boot/dts/ti/k3-j784s4-vision-apps.dtso    |  57 +++
+ 4 files changed, 405 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/ti/k3-j784s4-edgeai-apps.dtso
+ create mode 100644 arch/arm64/boot/dts/ti/k3-j784s4-rtos-memory-map.dtsi
+ create mode 100644 arch/arm64/boot/dts/ti/k3-j784s4-vision-apps.dtso
+
+diff --git a/arch/arm64/boot/dts/ti/Makefile b/arch/arm64/boot/dts/ti/Makefile
+index 697c43c6c4f6..9ed0bf4e82b0 100644
+--- a/arch/arm64/boot/dts/ti/Makefile
++++ b/arch/arm64/boot/dts/ti/Makefile
+@@ -226,6 +226,8 @@ dtb-$(CONFIG_ARCH_K3) += k3-j784s4-evm-quad-port-eth-exp1.dtbo
+ dtb-$(CONFIG_ARCH_K3) += k3-j784s4-evm-usxgmii-exp1-exp2.dtbo
+ dtb-$(CONFIG_ARCH_K3) += k3-j784s4-j742s2-evm-pcie-ntb.dtbo
+ dtb-$(CONFIG_ARCH_K3) += k3-j784s4-j742s2-evm-usb0-type-a.dtbo
++dtb-$(CONFIG_ARCH_K3) += k3-j784s4-vision-apps.dtbo
++dtb-$(CONFIG_ARCH_K3) += k3-j784s4-edgeai-apps.dtbo
+ 
+ # Boards with J742S2 SoC
+ dtb-$(CONFIG_ARCH_K3) += k3-j742s2-evm.dtb
+diff --git a/arch/arm64/boot/dts/ti/k3-j784s4-edgeai-apps.dtso b/arch/arm64/boot/dts/ti/k3-j784s4-edgeai-apps.dtso
+new file mode 100644
+index 000000000000..eee02b0538b0
+--- /dev/null
++++ b/arch/arm64/boot/dts/ti/k3-j784s4-edgeai-apps.dtso
+@@ -0,0 +1,11 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * vision-apps: device-tree overlay
++ *
++ * Copyright (C) 2019 - 2025 Texas Instruments Incorporated - https://www.ti.com/
++ */
++
++/dts-v1/;
++/plugin/;
++
++#include "k3-j784s4-rtos-memory-map.dtsi"
+diff --git a/arch/arm64/boot/dts/ti/k3-j784s4-rtos-memory-map.dtsi b/arch/arm64/boot/dts/ti/k3-j784s4-rtos-memory-map.dtsi
+new file mode 100644
+index 000000000000..cc8970b69f16
+--- /dev/null
++++ b/arch/arm64/boot/dts/ti/k3-j784s4-rtos-memory-map.dtsi
+@@ -0,0 +1,335 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Vision-apps: device-tree overlay
++ *
++ * Copyright (C) 2019 - 2025 Texas Instruments Incorporated - http://www.ti.com/
++ */
++
++#include <dt-bindings/soc/ti,sci_pm_domain.h>
++
++&mcu_r5fss0_core0_memory_region {
++	status = "disabled";
++};
++
++&mcu_r5fss0_core0_dma_memory_region {
++	status = "disabled";
++};
++
++&mcu_r5fss0_core1_dma_memory_region {
++	status = "disabled";
++};
++
++&mcu_r5fss0_core1_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss0_core0_dma_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss0_core0_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss0_core1_dma_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss0_core1_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss1_core0_dma_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss1_core0_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss1_core1_dma_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss1_core1_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss2_core0_dma_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss2_core0_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss2_core1_dma_memory_region {
++	status = "disabled";
++};
++
++&main_r5fss2_core1_memory_region {
++	status = "disabled";
++};
++
++&c71_0_dma_memory_region {
++	status = "disabled";
++};
++
++&c71_0_memory_region {
++	status = "disabled";
++};
++
++&c71_1_dma_memory_region {
++	status = "disabled";
++};
++
++&c71_1_memory_region {
++	status = "disabled";
++};
++
++&c71_2_dma_memory_region {
++	status = "disabled";
++};
++
++&c71_2_memory_region {
++	status = "disabled";
++};
++
++&c71_3_dma_memory_region {
++	status = "disabled";
++};
++
++&c71_3_memory_region {
++	status = "disabled";
++};
++
++&reserved_memory {
++	#address-cells = <2>;
++	#size-cells = <2>;
++
++	vision_apps_mcu_r5fss0_core0_dma_memory_region: vision-apps-r5f-dma-memory@a0000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa0000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_mcu_r5fss0_core0_memory_region: vision-apps-r5f-memory@a0100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa0100000 0x00 0x00f00000>;
++		no-map;
++	};
++	vision_apps_mcu_r5fss0_core1_dma_memory_region: vision-apps-r5f-dma-memory@a1000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa1000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_mcu_r5fss0_core1_memory_region: vision-apps-r5f-memory@a1100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa1100000 0x00 0x00f00000>;
++		no-map;
++	};
++	vision_apps_main_r5fss0_core0_dma_memory_region: vision-apps-r5f-dma-memory@a2000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa2000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_main_r5fss0_core0_memory_region: vision-apps-r5f-memory@a2100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa2100000 0x00 0x01f00000>;
++		no-map;
++	};
++	vision_apps_main_r5fss0_core1_dma_memory_region: vision-apps-r5f-dma-memory@a4000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa4000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_main_r5fss0_core1_memory_region: vision-apps-r5f-memory@a4100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa4100000 0x00 0x00f00000>;
++		no-map;
++	};
++	vision_apps_main_r5fss1_core0_dma_memory_region: vision-apps-r5f-dma-memory@a5000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa5000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_main_r5fss1_core0_memory_region: vision-apps-r5f-memory@a5100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa5100000 0x00 0x00f00000>;
++		no-map;
++	};
++	vision_apps_main_r5fss1_core1_dma_memory_region: vision-apps-r5f-dma-memory@a6000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa6000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_main_r5fss1_core1_memory_region: vision-apps-r5f-memory@a6100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa6100000 0x00 0x00f00000>;
++		no-map;
++	};
++	vision_apps_main_r5fss2_core0_dma_memory_region: vision-apps-r5f-dma-memory@a7000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa7000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_main_r5fss2_core0_memory_region: vision-apps-r5f-memory@a7100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa7100000 0x00 0x00f00000>;
++		no-map;
++	};
++	vision_apps_main_r5fss2_core1_dma_memory_region: vision-apps-r5f-dma-memory@a8000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa8000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_main_r5fss2_core1_memory_region: vision-apps-r5f-memory@a8100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xa8100000 0x00 0x00f00000>;
++		no-map;
++	};
++	vision_apps_rtos_ipc_memory_region: vision-apps-rtos-ipc-memory-region@ac000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xac000000 0x00 0x03000000>;
++		no-map;
++	};
++	vision_apps_memory_region: vision-apps-dma-memory@af000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xaf000000 0x00 0x03000000>;
++		no-map;
++	};
++	vision_apps_c71_0_dma_memory_region: vision-apps-c71-dma-memory@b2000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xb2000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_c71_0_memory_region: vision-apps-c71_0-memory@b2100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xb2100000 0x00 0x01f00000>;
++		no-map;
++	};
++	vision_apps_c71_1_dma_memory_region: vision-apps-c71_1-dma-memory@b4000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xb4000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_c71_1_memory_region: vision-apps-c71_1-memory@b4100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xb4100000 0x00 0x01f00000>;
++		no-map;
++	};
++	vision_apps_c71_2_dma_memory_region: vision-apps-c71_2-dma-memory@b6000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xb6000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_c71_2_memory_region: vision-apps-c71_2-memory@b6100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xb6100000 0x00 0x01f00000>;
++		no-map;
++	};
++	vision_apps_c71_3_dma_memory_region: vision-apps-c71_3-dma-memory@b8000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xb8000000 0x00 0x00100000>;
++		no-map;
++	};
++	vision_apps_c71_3_memory_region: vision-apps-c71_3-memory@b8100000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xb8100000 0x00 0x01f00000>;
++		no-map;
++	};
++	vision_apps_core_heaps_lo: vision-apps-core-heap-memory-lo@ba000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xba000000 0x00 0x04000000>;
++		no-map;
++	};
++	vision_apps_main_r5fss0_core0_shared_memory_queue_region: vision-apps-r5f-virtual-eth-queues@be000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xbe000000 0x00 0x00800000>;
++		no-map;
++	};
++	vision_apps_main_r5fss0_core0_shared_memory_bufpool_region: vision-apps-r5f-virtual-eth-buffers@be800000 {
++		compatible = "shared-dma-pool";
++		reg = <0x00 0xbe800000 0x00 0x01800000>;
++		no-map;
++	};
++	c7x_ddr_heaps_hi: c7x-ddr-heaps-hi@880000000 {
++		compatible = "shared-dma-pool";
++		reg = <0x08 0x80000000 0x01 0x00000000>;
++		no-map;
++	};
++	vision_apps_shared_region: vision_apps_shared-memories {
++		compatible = "dma-heap-carveout";
++		reg = <0x0a 0x00000000 0x00 0x3c000000>;
++	};
++	linux,cma {
++		status = "disabled";
++	};
++	linux_cma_region: linux-cma-buffers@a80000000 {
++		compatible = "shared-dma-pool";
++		reusable;
++		reg = <0x0a 0x80000000 0x00 0x70000000>;
++		linux,cma-default;
++	};
++};
++
++&mcu_r5fss0_core0 {
++	memory-region = <&vision_apps_mcu_r5fss0_core0_dma_memory_region>,
++			<&vision_apps_mcu_r5fss0_core0_memory_region>;
++};
++
++&mcu_r5fss0_core1 {
++	memory-region = <&vision_apps_mcu_r5fss0_core1_dma_memory_region>,
++			<&vision_apps_mcu_r5fss0_core1_memory_region>;
++};
++
++&main_r5fss0_core0 {
++	memory-region = <&vision_apps_main_r5fss0_core0_dma_memory_region>,
++			<&vision_apps_main_r5fss0_core0_memory_region>,
++			<&vision_apps_main_r5fss0_core0_shared_memory_queue_region>,
++			<&vision_apps_main_r5fss0_core0_shared_memory_bufpool_region>;
++};
++
++&main_r5fss0_core1 {
++	memory-region = <&vision_apps_main_r5fss0_core1_dma_memory_region>,
++			<&vision_apps_main_r5fss0_core1_memory_region>;
++};
++
++&main_r5fss1_core0 {
++	memory-region = <&vision_apps_main_r5fss1_core0_dma_memory_region>,
++			<&vision_apps_main_r5fss1_core0_memory_region>;
++};
++
++&main_r5fss1_core1 {
++	memory-region = <&vision_apps_main_r5fss1_core1_dma_memory_region>,
++			<&vision_apps_main_r5fss1_core1_memory_region>;
++};
++
++&main_r5fss2_core0 {
++	memory-region = <&vision_apps_main_r5fss2_core0_dma_memory_region>,
++			<&vision_apps_main_r5fss2_core0_memory_region>;
++};
++
++&main_r5fss2_core1 {
++	memory-region = <&vision_apps_main_r5fss2_core1_dma_memory_region>,
++			<&vision_apps_main_r5fss2_core1_memory_region>;
++};
++
++&c71_0 {
++	memory-region = <&vision_apps_c71_0_dma_memory_region>,
++			<&vision_apps_c71_0_memory_region>;
++};
++
++&c71_1 {
++	memory-region = <&vision_apps_c71_1_dma_memory_region>,
++			<&vision_apps_c71_1_memory_region>;
++};
++
++&c71_2 {
++	memory-region = <&vision_apps_c71_2_dma_memory_region>,
++			<&vision_apps_c71_2_memory_region>;
++};
++
++&c71_3 {
++	memory-region = <&vision_apps_c71_3_dma_memory_region>,
++			<&vision_apps_c71_3_memory_region>;
++};
+diff --git a/arch/arm64/boot/dts/ti/k3-j784s4-vision-apps.dtso b/arch/arm64/boot/dts/ti/k3-j784s4-vision-apps.dtso
+new file mode 100644
+index 000000000000..08c6b59d6c32
+--- /dev/null
++++ b/arch/arm64/boot/dts/ti/k3-j784s4-vision-apps.dtso
+@@ -0,0 +1,57 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * vision-apps: device-tree overlay
++ *
++ * Copyright (C) 2019 - 2022 Texas Instruments Incorporated - http://www.ti.com/
++ */
++
++/dts-v1/;
++/plugin/;
++
++#include <dt-bindings/mux/ti-serdes.h>
++
++&main_r5fss0_core0_shared_memory_queue_region {
++	status = "disabled";
++};
++
++&main_r5fss0_core0_shared_memory_bufpool_region {
++	status = "disabled";
++};
++
++#include "k3-j784s4-rtos-memory-map.dtsi"
++
++&main_i2c1 {
++    status = "disabled";
++};
++
++&main_i2c4 {
++	status = "disabled";
++};
++
++&main_i2c5 {
++	status = "disabled";
++};
++
++&dss {
++    status = "disabled";
++};
++
++&mhdp {
++    status = "disabled";
++};
++
++&serdes_wiz4 {
++    status = "disabled";
++};
++
++&ti_csi2rx0 {
++    status = "disabled";
++};
++
++&ti_csi2rx1 {
++    status = "disabled";
++};
++
++&ti_csi2rx2 {
++    status = "disabled";
++};
+-- 
+2.34.1
+

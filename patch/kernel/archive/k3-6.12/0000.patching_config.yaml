@@ -1,0 +1,8 @@
+config:
+
+  name: k3-6.12
+  kind: kernel
+  type: vendor
+  branch: ti-linux-6.12.y
+  maintainers:
+    - { github: vijayp-ti, name: Vijay Pothukuchi, email: vijayp@ti.com }
