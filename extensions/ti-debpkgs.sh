@@ -86,6 +86,15 @@ function post_install_kernel_debs__activate_dkms() {
     fi
 }
 
+function pre_umount_final_image__disable_uboot_rproc() {
+    if [[ -f "${SDCARD}/boot/uEnv.txt" ]]; then
+        if ! grep -q "dorprocboot" "${SDCARD}/boot/uEnv.txt"; then
+            echo "dorprocboot=0" >> "${SDCARD}/boot/uEnv.txt"
+            display_alert "Disabled U-Boot remoteproc auto-boot" "dorprocboot=0" "info"
+        fi
+    fi
+}
+
 function post_customize_image__rm_aptconf() {
     display_alert "Removing apt.conf file"
     run_host_command_logged "rm ${SDCARD}/etc/apt/apt.conf"
