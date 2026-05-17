@@ -1,0 +1,3 @@
+# /etc/default/watchdog — watchdog daemon defaults for TI K3 (j784s4-evm)
+run_watchdog=1
+watchdog_module=none

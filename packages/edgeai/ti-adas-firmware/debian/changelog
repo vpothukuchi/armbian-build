@@ -1,3 +1,17 @@
+ti-adas-firmware (1.0.0-4) noble; urgency=medium
+
+  * debian/ti-adas-firmware.links: re-add firmware symlinks as tracked
+    package files (via dh_link) rather than postinst update-alternatives.
+    Creates /usr/lib/firmware/j784s4-{main-r5f0_0..r5f2_1,c71_0..c71_3}-fw
+    pointing to vision_apps_evm/vx_app_rtos_linux_*.out.
+    Safe with dorprocboot=0: U-Boot does not auto-load firmware at boot so
+    the RTOS RTI watchdog timers are never armed without the vision_apps
+    IPC stack present.
+  * debian/control: fix description — only unsigned .out files are shipped;
+    remove incorrect mention of signed variants.
+
+ -- Vijay Pothukuchi <vijayp@ti.com>  Sat, 17 May 2025 00:00:00 +0000
+
 ti-adas-firmware (1.0.0-3) noble; urgency=medium
 
   * postinst/prerm: remove all update-alternatives calls.
