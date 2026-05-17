@@ -315,6 +315,7 @@ function install_distribution_agnostic() {
 		chroot_sdcard_apt_get clean
 	fi
 
+    chroot_sdcard "echo 'Acquire::http::proxy \"http://172.16.172.135:80\";' > /etc/apt/apt.conf"
 	display_alert "Updating" "apt package lists"
 	do_with_retries 3 chroot_sdcard_apt_get_update
 

@@ -409,6 +409,16 @@ function docker_cli_prepare_launch() {
 		"--env" "GITHUB_SHA=${GITHUB_SHA}"
 		"--env" "GITHUB_WORKFLOW=${GITHUB_WORKFLOW}"
 		"--env" "GITHUB_WORKSPACE=${GITHUB_WORKSPACE}"
+        "--env" "http_proxy=http://172.16.172.135:80"
+        "--env" "https_proxy=http://172.16.172.135:80"
+        "--env" "ftp_proxy=http://172.16.172.135:80"
+
+        "--env" "HTTP_PROXY=http://172.16.172.135:80"
+        "--env" "HTTPS_PROXY=http://172.16.172.135:80"
+        "--env" "FTP_PROXY=http://172.16.172.135:80"
+
+        "--env" "NO_PROXY=localhost,127.0.0.1,ti.com"
+        "--env" "no_proxy=localhost,127.0.0.1,ti.com"
 
 		# Pass proxy args
  		"--env" "http_proxy=${http_proxy:-${HTTP_PROXY}}"
