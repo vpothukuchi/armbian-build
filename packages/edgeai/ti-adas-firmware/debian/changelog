@@ -1,3 +1,16 @@
+ti-adas-firmware (1.0.0-3) noble; urgency=medium
+
+  * postinst/prerm: remove all update-alternatives calls.
+    Creating /usr/lib/firmware/j784s4-*-fw symlinks at install time causes
+    the kernel remoteproc subsystem to auto-boot all 10 DSP/MCU cores
+    (auto_boot=true is the kernel default). The RTOS firmware activates RTI
+    hardware watchdog timers; without the vision_apps stack feeding them the
+    watchdog fires a hardware SoC reset, causing a boot loop.
+    Firmware files remain in /usr/lib/firmware/vision_apps_evm/ and are
+    available for userspace remoteproc management when vision_apps is used.
+
+ -- Vijay Pothukuchi <vijayp@ti.com>  Fri, 16 May 2025 00:00:00 +0000
+
 ti-adas-firmware (1.0.0-2) noble; urgency=medium
 
   * postinst/prerm: remove .out.signed update-alternatives entries;
