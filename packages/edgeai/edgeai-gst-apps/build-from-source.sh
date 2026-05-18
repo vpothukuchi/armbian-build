@@ -13,7 +13,10 @@
 #   - Target sysroot with:
 #     * edgeai-dl-inferer headers + lib (E2 overlay)
 #     * ti-vision-apps headers + lib (A2, already overlaid)
-#     * libyaml-cpp-dev:arm64, libgstreamer1.0-dev:arm64, libopencv-dev:arm64
+#     * libyaml-cpp-dev:arm64, libgstreamer1.0-dev:arm64 (both in Docker image)
+#       NOTE: opencv is in the Yocto recipe DEPENDS but is NOT referenced in
+#             apps_cpp/CMakeLists.txt; the C++ build does not require it.
+#             Python demo scripts use cv2 at runtime — users can apt install python3-opencv.
 #
 # Usage: ./build-from-source.sh [OPTIONS]
 #   --sysroot     <path>   aarch64 target sysroot (default: /opt/arm64-sysroot)

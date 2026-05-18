@@ -10,7 +10,9 @@
 #   - Target sysroot with:
 #     * edgeai-tiovx-kernels headers + lib (E2 overlay)
 #     * libyaml-cpp-dev:arm64, libglib2.0-dev:arm64
-#     * libdrm-dev:arm64, libavcodec-dev:arm64 (ffmpeg)
+#     * libdrm-dev:arm64 (already in Docker image)
+#     * libavcodec-dev:arm64, libavformat-dev:arm64, libavutil-dev:arm64 (ffmpeg, in Docker image)
+#       NOTE: ffmpeg is unconditionally linked in cmake/common.cmake — not test-only
 #
 # Usage: ./build-from-source.sh [OPTIONS]
 #   --sysroot     <path>   aarch64 target sysroot (default: /opt/arm64-sysroot)

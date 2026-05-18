@@ -28,9 +28,9 @@
 # build time, so a pre-installed Debian package provides no benefit. It can
 # still be built explicitly: ./docker-build.sh edgeai-dl-inferer
 #
-# Note: edgeai-tiovx-modules, edgeai-tiovx-apps, edgeai-gst-plugins, and
-# edgeai-gst-apps are NOT built — they are demo/app packages not needed for
-# the edgeai-robotics-sdk target use case.
+# Note: edgeai-gst-plugins and edgeai-gst-apps are NOT built by default.
+# They require edgeai-dl-inferer (E2) as a runtime dep and libopencv-dev
+# in the build sysroot.  Build them explicitly if needed.
 #
 # Options:
 #   --mirror   <path>   Host path to a bare-clone git mirror directory.
@@ -158,6 +158,7 @@ while [[ $# -gt 0 ]]; do
         ti-adas-firmware|\
         edgeai-apps-utils|\
         edgeai-tiovx-kernels|edgeai-dl-inferer|\
+        edgeai-tiovx-modules|edgeai-tiovx-apps|\
         all)
             TARGET="$1"; shift ;;
         --help)
@@ -174,6 +175,7 @@ if [[ -z "${TARGET}" && "${DROP_SHELL}" -eq 0 ]]; then
     echo "            edgeai-apps-utils" >&2
     echo "            edgeai-tiovx-kernels" >&2
     echo "            edgeai-dl-inferer  (optional — see header comment)" >&2
+    echo "            edgeai-tiovx-modules edgeai-tiovx-apps" >&2
     echo "       $0 --help" >&2
     exit 1
 fi
@@ -488,6 +490,49 @@ fi
         "${pre_cmd}${ort_compat_cmd}cd /workspace/edgeai-dl-inferer && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
 }
 
+# ---------------------------------------------------------------------------
+# E3 packages — overlay E1+E2 debs before building
+# ---------------------------------------------------------------------------
+build_edgeai_tiovx_modules() {
+    info "=== Building edgeai-tiovx-modules (E3) ==="
+
+    local -a args=(--sysroot /opt/arm64-sysroot)
+    [[ -n "${MIRROR_PATH}" ]] && args+=(--mirror /mirrors)
+
+    local pre_cmd
+    pre_cmd=$(sysroot_overlay_cmd \
+        '/workspace/libti-rpmsg-char0_*.deb' \
+        '/workspace/libtivision-apps11.2.0_*.deb' \
+        '/workspace/libtivision-apps-dev_*.deb' \
+        '/workspace/edgeai-apps-utils_*.deb' \
+        '/workspace/edgeai-apps-utils-dev_*.deb' \
+        '/workspace/edgeai-tiovx-kernels_*.deb' \
+        '/workspace/edgeai-tiovx-kernels-dev_*.deb')
+
+    docker_run bash -c \
+        "${pre_cmd}cd /workspace/edgeai-tiovx-modules && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
+}
+
+build_edgeai_tiovx_apps() {
+    info "=== Building edgeai-tiovx-apps (E3) ==="
+
+    local -a args=(--sysroot /opt/arm64-sysroot)
+    [[ -n "${MIRROR_PATH}" ]] && args+=(--mirror /mirrors)
+
+    local pre_cmd
+    pre_cmd=$(sysroot_overlay_cmd \
+        '/workspace/libti-rpmsg-char0_*.deb' \
+        '/workspace/libtivision-apps11.2.0_*.deb' \
+        '/workspace/libtivision-apps-dev_*.deb' \
+        '/workspace/edgeai-apps-utils_*.deb' \
+        '/workspace/edgeai-apps-utils-dev_*.deb' \
+        '/workspace/edgeai-tiovx-kernels_*.deb' \
+        '/workspace/edgeai-tiovx-kernels-dev_*.deb')
+
+    docker_run bash -c \
+        "${pre_cmd}cd /workspace/edgeai-tiovx-apps && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
+}
+
 drop_shell() {
     info "Dropping into build container shell..."
     info "  /workspace  → ${SCRIPT_DIR}"
@@ -572,6 +617,13 @@ case "${TARGET}" in
     edgeai-dl-inferer)
         build_edgeai_dl_inferer
         ;;
+    # --- EdgeAI E3 packages ---
+    edgeai-tiovx-modules)
+        build_edgeai_tiovx_modules
+        ;;
+    edgeai-tiovx-apps)
+        build_edgeai_tiovx_apps
+        ;;
     all)
         # A1 — base TI packages (no external deps)
         build_ti_rpmsg_char
@@ -597,6 +649,10 @@ case "${TARGET}" in
         build_edgeai_tiovx_kernels
         # edgeai-dl-inferer intentionally omitted: edgeai-robotics-sdk
         # fetches and builds it via CPM; no Debian package needed.
+
+        # E3 — depend on E2 dev headers overlaid into sysroot
+        build_edgeai_tiovx_modules
+        build_edgeai_tiovx_apps
         ;;
 esac
 

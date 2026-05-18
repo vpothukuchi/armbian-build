@@ -161,14 +161,39 @@ RUN mkdir -p /opt/arm64-sysroot/usr && \
         libstdc++6:arm64 \
         libstdc++-13-dev:arm64 \
         \
-        # yaml-cpp arm64 — needed for edgeai-dl-inferer
+        # yaml-cpp arm64 — needed for edgeai-dl-inferer / edgeai-tiovx-apps.
+        # Include runtime package so the unversioned .so symlink is not dangling.
+        # Ubuntu Noble (24.04): yaml-cpp 0.8.x → libyaml-cpp0.8.
+        libyaml-cpp0.8:arm64 \
         libyaml-cpp-dev:arm64 \
+        \
+        # ffmpeg arm64 — edgeai-tiovx-apps links avcodec/avformat/avutil unconditionally.
+        # Include both -dev (headers + unversioned .so symlink) AND the runtime packages
+        # (versioned .so.60 / .so.58 files) so the unversioned symlinks are not dangling.
+        # Ubuntu Noble (24.04) ffmpeg 6.1.x: avcodec 60, avformat 60, avutil 58.
+        libavcodec60:arm64 \
+        libavcodec-dev:arm64 \
+        libavformat60:arm64 \
+        libavformat-dev:arm64 \
+        libavutil58:arm64 \
+        libavutil-dev:arm64 \
         \
     && for f in /tmp/*.deb; do \
            dpkg-deb -x "${f}" /opt/arm64-sysroot/; \
            rm "${f}"; \
        done \
     && rm -rf /var/lib/apt/lists/* \
+    # cmake/common.cmake in edgeai-tiovx-apps sets
+    # CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ".so", so CMake prefers static
+    # archives over shared libraries.  Static C++ libs (yaml-cpp, avcodec, …)
+    # drag in C++ runtime symbols (__cxa_*, vtable, operator new/delete) that
+    # are absent when a C executable is linked without -lstdc++.
+    # Remove ALL static archives except the glibc non-shared stubs that the
+    # C runtime linker scripts require, forcing the linker to use .so instead.
+    && find /opt/arm64-sysroot/usr/lib -name "lib*.a" \
+            ! -name "libc_nonshared.a" \
+            ! -name "libpthread_nonshared.a" \
+            -delete \
     # Ubuntu's libdrm-dev installs headers to /usr/include/libdrm/*.h
     # Yocto/OE sysroots expose them directly as /usr/include/drm.h etc.
     # Create flat symlinks so #include <drm.h> and #include <drm_fourcc.h> work.
