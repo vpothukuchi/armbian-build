@@ -233,6 +233,22 @@ function post_customize_image__aaa_ros2_setup() {
         display_alert "python3-colcon-common-extensions install failed" "" "wrn"
 }
 
+function post_customize_image__aab_fix_ros2_distro() {
+    # ros_environment is a ROS2 package whose env hook (1.ros_distro.sh) exports
+    # ROS_DISTRO=jazzy.  In merged-install mode, _local_setup_util_sh.py only
+    # discovers packages via share/colcon-core/packages/<pkg-name> marker files.
+    # Ubuntu Noble's ros-jazzy-ros-environment does not create this marker file,
+    # so ROS_DISTRO is never set when sourcing /opt/ros/jazzy/setup.bash.
+    # Creating an empty marker file fixes the colcon package discovery.
+    if [[ -d "${SDCARD}/opt/ros/jazzy" ]]; then
+        display_alert "Fixing ROS_DISTRO: registering ros_environment in colcon-core" "ros2" "info"
+        mkdir -p "${SDCARD}/opt/ros/jazzy/share/colcon-core/packages"
+        : > "${SDCARD}/opt/ros/jazzy/share/colcon-core/packages/ros_environment"
+    else
+        display_alert "ROS2 Jazzy not installed; skipping ros_environment fix" "" "wrn"
+    fi
+}
+
 function post_customize_image__rm_aptconf() {
     display_alert "Removing apt.conf file"
     run_host_command_logged "rm -f ${SDCARD}/etc/apt/apt.conf"
