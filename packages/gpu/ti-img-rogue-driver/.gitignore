@@ -1,0 +1,6 @@
+src/
+staging/
+*.deb
+*.buildinfo
+*.changes
+*.log

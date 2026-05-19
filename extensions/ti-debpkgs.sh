@@ -164,8 +164,14 @@ ti_k3_r5_remoteproc
 ti_k3_dsp_remoteproc
 rpmsg_char
 rpmsg_ctrl
+
+# Wave521C VPU — hardware H.264/H.265 encode+decode (/dev/video0-3)
+wave5
+
+# PowerVR Rogue GPU — IMG BXS-4-64 on j784s4 (out-of-tree pvrsrvkm.ko)
+pvrsrvkm
 EOF
-    display_alert "Added K3 remoteproc + rpmsg_char to /etc/modules" "" "info"
+    display_alert "Added K3 remoteproc, rpmsg_char, wave5, pvrsrvkm to /etc/modules" "" "info"
 }
 
 function pre_umount_final_image__configure_uboot_rproc() {

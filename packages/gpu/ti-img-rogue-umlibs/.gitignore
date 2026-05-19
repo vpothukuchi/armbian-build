@@ -1,0 +1,7 @@
+src/
+staging/
+ti-img-rogue-umlibs_*/
+*.deb
+*.buildinfo
+*.changes
+*.log
