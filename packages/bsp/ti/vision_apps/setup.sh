@@ -155,6 +155,12 @@ _start() {
 _stop() {
     local stopped=0 failed=0
 
+    # Any running vx_app_*.out process keeps rpmsg endpoints open; the kernel
+    # returns EBUSY when stopping a remoteproc core with open endpoints.
+    # Kill all vision-apps user-space processes before stopping the cores.
+    pkill -f "vx_app_" 2>/dev/null || true
+    sleep 0.5
+
     while IFS= read -r d; do
         local name state
         name="$(_rproc_attr "${d}" name)"

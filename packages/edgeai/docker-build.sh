@@ -138,6 +138,7 @@ FW_DIR=""
 NO_CACHE=""
 DROP_SHELL=0
 PREBUILT=0
+SKIP_SOURCE_BUILD=0
 TARGET=""
 
 # ---------------------------------------------------------------------------
@@ -150,8 +151,9 @@ while [[ $# -gt 0 ]]; do
         --sdk-path)  SDK_PATH="$2";     shift 2 ;;
         --ipk-dir)   IPK_DIR="$2";      shift 2 ;;
         --fw-dir)    FW_DIR="$2";       shift 2 ;;
-        --prebuilt)  PREBUILT=1;        shift ;;
-        --no-cache)  NO_CACHE="--no-cache"; shift ;;
+        --prebuilt)          PREBUILT=1;           shift ;;
+        --skip-source-build) SKIP_SOURCE_BUILD=1;  shift ;;
+        --no-cache)          NO_CACHE="--no-cache"; shift ;;
         --shell)     DROP_SHELL=1;      shift ;;
         --image-tag) IMAGE_TAG="$2";    shift 2 ;;
         ti-rpmsg-char|ti-tidl-osrt|ti-tidl|ti-vision-apps|\
@@ -159,6 +161,8 @@ while [[ $# -gt 0 ]]; do
         edgeai-apps-utils|\
         edgeai-tiovx-kernels|edgeai-dl-inferer|\
         edgeai-tiovx-modules|edgeai-tiovx-apps|\
+        edgeai-gst-plugins|edgeai-gst-apps|\
+        edgeai-tidl-models|edgeai-test-data|\
         all)
             TARGET="$1"; shift ;;
         --help)
@@ -289,6 +293,12 @@ build_ti_tidl_osrt() {
     if [[ "${PREBUILT}" -eq 1 ]]; then
         # Fall back to all-CDN mode (same outcome as the old build-deb.sh)
         args+=(--prebuilt-osrt)
+    fi
+
+    if [[ "${SKIP_SOURCE_BUILD}" -eq 1 ]]; then
+        # Skip TFLite + ONNX RT compilation; reuse artifacts from a previous run.
+        # The ort Python wheel is still downloaded from CDN if not already cached.
+        args+=(--skip-source-build)
     fi
 
     local build_cmd="./build-from-source.sh"
@@ -533,6 +543,74 @@ build_edgeai_tiovx_apps() {
         "${pre_cmd}cd /workspace/edgeai-tiovx-apps && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
 }
 
+# ---------------------------------------------------------------------------
+# E4 packages — GStreamer integration; depend on E1+E2+E3 and libgstreamer arm64
+# (libgstreamer1.0-dev:arm64 and libgstreamer-plugins-base1.0-dev:arm64 are
+# pre-installed in the Docker sysroot via the Dockerfile)
+# ---------------------------------------------------------------------------
+build_edgeai_gst_plugins() {
+    info "=== Building edgeai-gst-plugins (E4) ==="
+
+    local -a args=(--sysroot /opt/arm64-sysroot)
+    [[ -n "${MIRROR_PATH}" ]] && args+=(--mirror /mirrors)
+
+    local pre_cmd
+    pre_cmd=$(sysroot_overlay_cmd \
+        '/workspace/libti-rpmsg-char0_*.deb' \
+        '/workspace/libtivision-apps11.2.0_*.deb' \
+        '/workspace/libtivision-apps-dev_*.deb' \
+        '/workspace/ti-tidl-osrt_*.deb' \
+        '/workspace/ti-tidl-osrt-dev_*.deb' \
+        '/workspace/edgeai-apps-utils_*.deb' \
+        '/workspace/edgeai-apps-utils-dev_*.deb' \
+        '/workspace/edgeai-dl-inferer_*.deb' \
+        '/workspace/edgeai-dl-inferer-dev_*.deb' \
+        '/workspace/edgeai-tiovx-kernels_*.deb' \
+        '/workspace/edgeai-tiovx-kernels-dev_*.deb' \
+        '/workspace/edgeai-tiovx-modules_*.deb' \
+        '/workspace/edgeai-tiovx-modules-dev_*.deb')
+
+    docker_run bash -c \
+        "${pre_cmd}cd /workspace/edgeai-gst-plugins && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
+}
+
+build_edgeai_gst_apps() {
+    info "=== Building edgeai-gst-apps (E4) ==="
+
+    local -a args=(--sysroot /opt/arm64-sysroot)
+    [[ -n "${MIRROR_PATH}" ]] && args+=(--mirror /mirrors)
+
+    local pre_cmd
+    pre_cmd=$(sysroot_overlay_cmd \
+        '/workspace/libti-rpmsg-char0_*.deb' \
+        '/workspace/libtivision-apps11.2.0_*.deb' \
+        '/workspace/libtivision-apps-dev_*.deb' \
+        '/workspace/ti-tidl-osrt_*.deb' \
+        '/workspace/ti-tidl-osrt-dev_*.deb' \
+        '/workspace/edgeai-apps-utils_*.deb' \
+        '/workspace/edgeai-apps-utils-dev_*.deb' \
+        '/workspace/edgeai-dl-inferer_*.deb' \
+        '/workspace/edgeai-dl-inferer-dev_*.deb' \
+        '/workspace/edgeai-gst-plugins_*.deb')
+
+    docker_run bash -c \
+        "${pre_cmd}cd /workspace/edgeai-gst-apps && ./build-from-source.sh $(printf '%q ' "${args[@]}")"
+}
+
+# ---------------------------------------------------------------------------
+# Data packages — download pre-trained models and test content from TI CDN.
+# No cross-compilation; pure data packaging.
+# ---------------------------------------------------------------------------
+build_edgeai_tidl_models() {
+    info "=== Building edgeai-tidl-models (data) ==="
+    docker_run bash -c "cd /workspace/edgeai-tidl-models && ./build-from-source.sh --soc j784s4"
+}
+
+build_edgeai_test_data() {
+    info "=== Building edgeai-test-data (data) ==="
+    docker_run bash -c "cd /workspace/edgeai-test-data && ./build-from-source.sh --soc j784s4"
+}
+
 drop_shell() {
     info "Dropping into build container shell..."
     info "  /workspace  → ${SCRIPT_DIR}"
@@ -624,6 +702,20 @@ case "${TARGET}" in
     edgeai-tiovx-apps)
         build_edgeai_tiovx_apps
         ;;
+    # --- EdgeAI E4 packages ---
+    edgeai-gst-plugins)
+        build_edgeai_gst_plugins
+        ;;
+    edgeai-gst-apps)
+        build_edgeai_gst_apps
+        ;;
+    # --- Data packages ---
+    edgeai-tidl-models)
+        build_edgeai_tidl_models
+        ;;
+    edgeai-test-data)
+        build_edgeai_test_data
+        ;;
     all)
         # A1 — base TI packages (no external deps)
         build_ti_rpmsg_char
@@ -647,12 +739,19 @@ case "${TARGET}" in
 
         # E2 — depend on E1 dev headers overlaid into sysroot
         build_edgeai_tiovx_kernels
-        # edgeai-dl-inferer intentionally omitted: edgeai-robotics-sdk
-        # fetches and builds it via CPM; no Debian package needed.
+        build_edgeai_dl_inferer
 
         # E3 — depend on E2 dev headers overlaid into sysroot
         build_edgeai_tiovx_modules
         build_edgeai_tiovx_apps
+
+        # E4 — GStreamer integration (depend on E1+E2+E3)
+        build_edgeai_gst_plugins
+        build_edgeai_gst_apps
+
+        # Data packages — download pre-trained models and test content
+        build_edgeai_tidl_models
+        build_edgeai_test_data
         ;;
 esac
 

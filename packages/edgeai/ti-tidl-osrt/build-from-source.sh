@@ -63,10 +63,15 @@ CROSS_PREFIX="aarch64-linux-gnu-"
 TIDL_VER="11_02_04_00"
 BASE_URL="https://software-dl.ti.com/jacinto7/esd/tidl-tools/${TIDL_VER}/OSRT_TOOLS/ARM_LINUX/ARAGO"
 
-# CDN-only artifacts (tvm and tidlruntime have no public source)
+# CDN-only artifacts (tvm, tidlruntime, and ort Python wheel)
+# The onnxruntime Python wheel is included here because bdist_wheel cannot
+# run on an x86_64 host when the compiled pybind11 .so is an arm64 binary
+# (import would fail).  The C++ library is still built from source; only
+# the Python package is fetched from TI's official CDN release.
 declare -A CDN_ARTIFACTS=(
     ["tvm-0.18.0-cp312-cp312-linux_aarch64.whl"]=""
     ["tidlruntime-0.1.0-cp312-cp312-linux_aarch64.whl"]=""
+    ["onnxruntime_tidl-1.15.0-cp312-cp312-linux_aarch64.whl"]="38c9953b6bef83f6e92012412fe0818dea5741caa790d70c19328bd88fca3056"
 )
 
 # Prebuilt OSRT artifacts (used only with --prebuilt-osrt)
@@ -379,11 +384,15 @@ build_onnxrt() {
     mkdir -p "${build_dir}"
     cd "${src}"
 
+    # NOTE: --build_wheel is intentionally absent.  When cross-compiling x86_64 →
+    # arm64, the pybind11 .so compiled by CMake is an arm64 binary; running
+    # bdist_wheel on the x86_64 host would try to import it and fail with a
+    # "cannot execute binary file" or ELF mismatch error.  The Python wheel
+    # is downloaded from TI CDN as part of CDN_ARTIFACTS instead.
     python3 tools/ci_build/build.py \
         --build_dir "${build_dir}" \
         --config Release \
         --build_shared_lib \
-        --build_wheel \
         --cmake_extra_defines \
             "CMAKE_TOOLCHAIN_FILE=${src}/cmake/tool.cmake" \
             "onnxruntime_USE_TIDL=ON" \
@@ -391,7 +400,7 @@ build_onnxrt() {
         --skip_tests \
         --parallel "${JOBS}"
 
-    # Collect built artifacts
+    # Collect the C++ shared library into artifacts/
     mkdir -p "${ARTIFACTS_DIR}"
 
     local so
@@ -399,12 +408,7 @@ build_onnxrt() {
     [[ -f "${so}" ]] || error "libonnxruntime.so.* not found in ${release_dir}"
     cp "${so}" "${ARTIFACTS_DIR}/"
     info "  Shared lib: $(basename "${so}")"
-
-    local wheel
-    wheel=$(find "${release_dir}/dist" -name "onnxruntime*.whl" 2>/dev/null | head -1)
-    [[ -f "${wheel}" ]] || error "ONNX Runtime wheel not found in ${release_dir}/dist"
-    cp "${wheel}" "${ARTIFACTS_DIR}/"
-    info "  Wheel: $(basename "${wheel}")"
+    info "  Python wheel will come from TI CDN (onnxruntime_tidl in CDN_ARTIFACTS)"
 
     cd "${SCRIPT_DIR}"
     info "=== ONNX Runtime build complete ==="
@@ -484,13 +488,12 @@ stage_artifacts() {
     info "  Unpacking TFLite wheel: $(basename "${tfl_wheel}")"
     unzip -q "${tfl_wheel}" -d "${STAGING_DIR}/python"
 
+    # The ort Python wheel is always in DOWNLOAD_DIR (onnxruntime_tidl-*.whl).
+    # In source mode: CDN_ARTIFACTS downloads it there alongside tvm/tidlruntime.
+    # In prebuilt mode: PREBUILT_ARTIFACTS downloads it there as well.
     local ort_wheel
-    if [[ "${PREBUILT_OSRT}" -eq 1 ]]; then
-        ort_wheel=$(find "${DOWNLOAD_DIR}" -name "onnxruntime*.whl" | head -1)
-    else
-        ort_wheel=$(find "${ARTIFACTS_DIR}" -name "onnxruntime*.whl" | head -1)
-    fi
-    [[ -f "${ort_wheel}" ]] || error "ONNX Runtime wheel not found"
+    ort_wheel=$(find "${DOWNLOAD_DIR}" -name "onnxruntime*.whl" | head -1)
+    [[ -f "${ort_wheel}" ]] || error "ONNX Runtime wheel not found in ${DOWNLOAD_DIR}"
     info "  Unpacking ONNX RT wheel: $(basename "${ort_wheel}")"
     unzip -q "${ort_wheel}" -d "${STAGING_DIR}/python"
 
@@ -594,20 +597,42 @@ _stage_tflite_source() {
             install -Dm644 "$f" "${STAGING_DIR}/include/tensorflow/lite/${rel}"
         done
 
-    # Additional static libs → tflite_2.12/ (flatbuffers, abseil, ruy, etc.)
-    # These are needed when linking a C++ application against libtensorflow-lite.a
+    # Additional static libs → tflite_2.12/ preserving CMake subdirectory structure.
+    # The edgeai_dl_inferer.pc references paths like -L/usr/lib/tflite_2.12/ruy-build,
+    # -L/usr/lib/tflite_2.12/xnnpack-build, etc., matching the Yocto install layout
+    # where each CMake _deps/*-build/ tree maps to tflite_2.12/<dep-name>/.
     mkdir -p "${STAGING_DIR}/lib/tflite_2.12"
-    find "${build}/_deps" "${build}/pthreadpool" "${build}/cpuinfo" \
-        -name "*.a" 2>/dev/null \
-        | while read -r f; do
-            cp -n "$f" "${STAGING_DIR}/lib/tflite_2.12/" 2>/dev/null || true
+
+    # Iterate over each _deps/*-build directory, preserving its internal tree.
+    for dep_dir in "${build}/_deps/"*-build; do
+        [[ -d "${dep_dir}" ]] || continue
+        local dep_name
+        dep_name="$(basename "${dep_dir}")"
+        local dest="${STAGING_DIR}/lib/tflite_2.12/${dep_name}"
+        mkdir -p "${dest}"
+        find "${dep_dir}" -name "*.a" 2>/dev/null | while IFS= read -r f; do
+            rel="${f#${dep_dir}/}"
+            install -Dm644 "${f}" "${dest}/${rel}"
         done
-    # Top-level build dir .a files (excluding libtensorflow-lite.a already copied)
-    find "${build}" -maxdepth 1 -name "*.a" ! -name "libtensorflow-lite.a" \
-        | while read -r f; do
-            cp -n "$f" "${STAGING_DIR}/lib/tflite_2.12/" 2>/dev/null || true
+        # ruy-build: CMake places its .a files in a ruy/ subdirectory, but Yocto
+        # (and edgeai_dl_inferer.pc) expects them flat in ruy-build/.
+        # Promote ruy/libruy_*.a to ruy-build/ top level.
+        if [[ "${dep_name}" == "ruy-build" ]]; then
+            find "${dep_dir}/ruy" -maxdepth 1 -name "*.a" 2>/dev/null \
+                | while IFS= read -r f; do
+                    cp -n "${f}" "${dest}/" 2>/dev/null || true
+                done
+        fi
+    done
+
+    # pthreadpool is a top-level CMake build dir (not inside _deps/).
+    mkdir -p "${STAGING_DIR}/lib/tflite_2.12/pthreadpool"
+    find "${build}/pthreadpool" -maxdepth 1 -name "*.a" 2>/dev/null \
+        | while IFS= read -r f; do
+            cp "${f}" "${STAGING_DIR}/lib/tflite_2.12/pthreadpool/" 2>/dev/null || true
         done
-    info "  tflite_2.12/ contains $(ls "${STAGING_DIR}/lib/tflite_2.12/" | wc -l) files"
+
+    info "  tflite_2.12/ contains $(find "${STAGING_DIR}/lib/tflite_2.12" -name "*.a" | wc -l) .a files"
 }
 
 _stage_onnxrt_prebuilt() {
@@ -634,10 +659,16 @@ _stage_onnxrt_source() {
     info "  Staging ONNX Runtime C++ artifacts from source build..."
     local src="${SRC_DIR}/onnxruntime"
 
-    # Shared library (also bundled inside the wheel as onnxruntime*/capi/libonnxruntime.so.*)
+    # Shared library: check ARTIFACTS_DIR first (normal path after build_onnxrt),
+    # then Release/ directly (fallback when --skip-source-build was used and
+    # build_onnxrt never ran to copy the .so to artifacts/).
     local so
     so=$(find "${ARTIFACTS_DIR}" -name "libonnxruntime.so.*" | head -1)
-    [[ -f "${so}" ]] || error "libonnxruntime.so.* not found in ${ARTIFACTS_DIR}"
+    if [[ -z "${so}" ]]; then
+        so=$(find "${BUILD_DIR}/onnxruntime/Release" -maxdepth 1 \
+                  -name "libonnxruntime.so.*" 2>/dev/null | head -1)
+    fi
+    [[ -f "${so}" ]] || error "libonnxruntime.so.* not found in ${ARTIFACTS_DIR} or Release/"
     cp "${so}" "${STAGING_DIR}/lib/"
     local soname
     soname=$(basename "${so}")

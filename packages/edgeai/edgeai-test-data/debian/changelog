@@ -1,0 +1,7 @@
+edgeai-test-data (1.0-1) noble; urgency=medium
+
+  * Initial packaging of TI EdgeAI test images and demo videos.
+    Downloaded via download_test_data.sh from edgeai-gst-apps SRCREV 464f70b
+    (PSDK Analytics 11.02, SOC=j784s4, EDGEAI_SDK_VERSION=11_01_00).
+
+ -- Vijay Pothukuchi <vijayp@ti.com>  Sun, 18 May 2026 00:00:00 +0000

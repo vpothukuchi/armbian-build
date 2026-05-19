@@ -152,15 +152,36 @@ function post_install_kernel_debs__activate_dkms() {
     fi
 }
 
-function pre_umount_final_image__disable_uboot_rproc() {
+function pre_customize_image__load_rpmsg_modules() {
+    # Ensure K3 remoteproc and rpmsg_char modules are loaded at boot.
+    # These are CONFIG_=m in the vendor kernel; without explicit module loading
+    # they may be initialised asynchronously via udev, potentially after
+    # user-space applications try to open /dev/rpmsg* endpoints.
+    cat >> "${SDCARD}/etc/modules" <<'EOF'
+
+# K3 remoteproc + RPMsg char (required for vision_apps IPC)
+ti_k3_r5_remoteproc
+ti_k3_dsp_remoteproc
+rpmsg_char
+rpmsg_ctrl
+EOF
+    display_alert "Added K3 remoteproc + rpmsg_char to /etc/modules" "" "info"
+}
+
+function pre_umount_final_image__configure_uboot_rproc() {
     # MOUNT/boot is the mounted FAT boot partition; SDCARD/boot is the
     # temp-rootfs source that was already rsynced to FAT before this hook
     # runs.  Writes must go to MOUNT/boot/uEnv.txt to persist in the image.
+    #
+    # dorprocboot=1: U-Boot performs rproc init + TISCI ownership transfer
+    # before handing off to Linux.  Yocto uses dorprocboot=1; this ensures
+    # correct TISCI power/security state so Linux remoteproc can reliably
+    # start C7x DSP and R5F cores and their IPC endpoints work correctly.
     local uenv="${MOUNT}/boot/uEnv.txt"
     if [[ -f "${uenv}" ]]; then
         if ! grep -q "dorprocboot" "${uenv}"; then
-            echo "dorprocboot=0" >> "${uenv}"
-            display_alert "Disabled U-Boot remoteproc auto-boot" "dorprocboot=0" "info"
+            echo "dorprocboot=1" >> "${uenv}"
+            display_alert "Enabled U-Boot remoteproc boot" "dorprocboot=1" "info"
         fi
         if ! grep -q "name_overlays" "${uenv}"; then
             echo "name_overlays=ti/k3-j784s4-vision-apps.dtbo" >> "${uenv}"
@@ -169,12 +190,11 @@ function pre_umount_final_image__disable_uboot_rproc() {
     fi
 }
 
-function post_customize_image__setup_ros2_apt() {
-    # Pre-configure the ROS2 Jazzy apt repository so customers can install
-    # ROS2 packages without any additional setup steps after flashing.
+function post_customize_image__aaa_ros2_setup() {
+    # Pre-configure the ROS2 Jazzy apt repository and install colcon build tools
+    # while the TI proxy is still in apt.conf (this hook runs before rm_aptconf).
     # Key source: https://raw.githubusercontent.com/ros/rosdistro/master/ros.key
     local ros_keyring="${SDCARD}/usr/share/keyrings/ros-archive-keyring.gpg"
-    local ros_sources="${SDCARD}/etc/apt/sources.list.d/ros2.list"
 
     display_alert "Setting up ROS2 Jazzy apt repository" "ros2" "info"
 
@@ -191,6 +211,20 @@ function post_customize_image__setup_ros2_apt() {
         > "${SDCARD}/etc/apt/sources.list.d/ros2.list"
 
     display_alert "ROS2 Jazzy apt source configured" "packages.ros.org/ros2/ubuntu noble" "info"
+
+    # Install colcon with ROS2 extensions from the ROS2 apt repo.
+    # python3-colcon-common-extensions includes python3-colcon-ros (needed by
+    # `colcon build` to find ament_cmake packages), which Ubuntu Noble's `colcon`
+    # meta-package does NOT provide.
+    chroot_sdcard_apt_get_update || {
+        display_alert "ROS2 apt update failed; skipping colcon install" "" "wrn"
+        return 0
+    }
+    display_alert "Installing colcon ROS2 build tools" "python3-colcon-common-extensions" "info"
+    DONT_MAINTAIN_APT_CACHE="yes" \
+        chroot_sdcard_apt_get --no-install-recommends install \
+        python3-colcon-common-extensions || \
+        display_alert "python3-colcon-common-extensions install failed" "" "wrn"
 }
 
 function post_customize_image__rm_aptconf() {

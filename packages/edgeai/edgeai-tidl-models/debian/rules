@@ -1,0 +1,17 @@
+#!/usr/bin/make -f
+# debian/rules for edgeai-tidl-models
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	install -d debian/edgeai-tidl-models/opt/model_zoo
+	cp -a staging/opt/model_zoo/. debian/edgeai-tidl-models/opt/model_zoo/
+
+override_dh_strip:
+
+override_dh_shlibdeps:

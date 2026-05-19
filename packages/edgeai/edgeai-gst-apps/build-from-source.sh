@@ -79,8 +79,8 @@ build_from_source() {
     info "=== CMake cross-compiling edgeai-gst-apps ${PKG_VERSION} ==="
     [[ -d "${SYSROOT}" ]] || error "Sysroot not found: ${SYSROOT}"
 
-    if [[ ! -d "${SYSROOT}/usr/include/edgeai-dl-inferer" ]]; then
-        error "edgeai-dl-inferer headers not found in sysroot (E2 overlay required)"
+    if [[ ! -d "${SYSROOT}/usr/include/edgeai_dl_inferer" ]]; then
+        error "edgeai_dl_inferer headers not found in sysroot (E2 overlay required)"
     fi
 
     local toolchain_file="${SCRIPT_DIR}/src/aarch64-cross.cmake"

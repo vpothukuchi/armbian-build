@@ -1,0 +1,12 @@
+src/
+staging/
+model_zoo/
+*.log
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/edgeai-tidl-models/
+debian/*.substvars
+*.deb
+*.buildinfo
+*.changes

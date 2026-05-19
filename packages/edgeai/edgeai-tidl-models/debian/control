@@ -1,0 +1,20 @@
+Source: edgeai-tidl-models
+Section: misc
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/TexasInstruments/edgeai-gst-apps
+
+Package: edgeai-tidl-models
+Architecture: arm64
+Depends: ${misc:Depends}
+Description: TI EdgeAI pre-trained TIDL inference models
+ Pre-trained deep learning models for TI EdgeAI inference demos, covering
+ image classification, object detection, and semantic segmentation.
+ Models are provided in ONNX, TFLite, and TVM formats, optimised and
+ compiled for TIDL acceleration on TI J7x/AM6x SoCs.
+ .
+ Installed to /opt/model_zoo/.
+ .
+ Compatible with: j721e, j721s2, j784s4, j722s, am62axx.

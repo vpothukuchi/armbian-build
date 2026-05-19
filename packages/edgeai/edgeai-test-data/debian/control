@@ -1,0 +1,21 @@
+Source: edgeai-test-data
+Section: misc
+Priority: optional
+Maintainer: Vijay Pothukuchi <vijayp@ti.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/TexasInstruments/edgeai-gst-apps
+
+Package: edgeai-test-data
+Architecture: arm64
+Depends: ${misc:Depends}
+Description: TI EdgeAI test images and demo videos
+ Sample images and videos for use with TI EdgeAI inference pipelines and
+ demonstration applications (edgeai-gst-apps, edgeai-tiovx-apps).
+ .
+ Includes test images for classification, detection, and segmentation tasks,
+ plus out-of-box demo video clips for GStreamer-based demos.
+ .
+ Installed to /opt/edgeai-test-data/ and /opt/oob-demo-assets/.
+ .
+ Compatible with: j721e, j721s2, j784s4, j722s, am62axx.

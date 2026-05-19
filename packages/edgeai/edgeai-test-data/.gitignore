@@ -1,0 +1,13 @@
+src/
+staging/
+oob-demo-assets/
+edgeai-test-data/
+*.log
+debian/.debhelper/
+debian/debhelper-build-stamp
+debian/files
+debian/edgeai-test-data/
+debian/*.substvars
+*.deb
+*.buildinfo
+*.changes

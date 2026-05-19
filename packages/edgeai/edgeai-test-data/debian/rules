@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+# debian/rules for edgeai-test-data
+
+%:
+	dh $@
+
+override_dh_auto_configure:
+
+override_dh_auto_build:
+
+override_dh_auto_install:
+	install -d debian/edgeai-test-data/opt/edgeai-test-data
+	install -d debian/edgeai-test-data/opt/oob-demo-assets
+	cp -a staging/opt/edgeai-test-data/. debian/edgeai-test-data/opt/edgeai-test-data/
+	cp -a staging/opt/oob-demo-assets/. debian/edgeai-test-data/opt/oob-demo-assets/
+
+override_dh_strip:
+
+override_dh_shlibdeps:

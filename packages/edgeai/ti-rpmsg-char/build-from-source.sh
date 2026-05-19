@@ -4,7 +4,16 @@
 #
 # Upstream:  https://git.ti.com/git/rpmsg/ti-rpmsg-char.git
 # Reference: meta-ti/recipes-connectivity/ti-rpmsg-char/ti-rpmsg-char.bb
-# SRCREV:    c95e09a  (ships as version 0.6.10)
+# SRCREV:    057b1a2  (ships as version 0.6.10, matches meta-ti Yocto recipe)
+#
+# NOTE: Do NOT advance past 057b1a2. Commit dd47834 ("lib: Do not update local
+# endpoint") removes _rpmsg_char_get_local_endpt(), causing rcdev.endpt to be
+# set to RPMSG_ADDR_ANY (0xFFFFFFFF) instead of the kernel-assigned dynamic
+# port. This breaks TI Vision Apps / TIOVX: host_port_id in all obj_descs gets
+# 0xFFFFFFFF, so C7x DSP sends ACKs to port 0xFFFF on Linux (no endpoint there)
+# and tivxEventWait() hangs forever. The Yocto meta-ti recipe uses 057b1a2
+# which still has _rpmsg_char_get_local_endpt() reading the real port from
+# /sys/class/rpmsg/rpmsg<N>/src.
 #
 # Prerequisites:
 #   - aarch64-linux-gnu cross-compiler (gcc-aarch64-linux-gnu on Ubuntu)
@@ -14,7 +23,7 @@
 #   --cross-compile  <prefix>  Cross-compiler prefix (default: aarch64-linux-gnu-)
 #   --sysroot        <path>    Target sysroot for libc and startup objects
 #                              Required when libc6-dev-arm64-cross is not fully installed
-#   --srcrev         <rev>     Git revision to build (default: c95e09a)
+#   --srcrev         <rev>     Git revision to build (default: 057b1a2)
 #   --git-mirror     <path>    Local bare-clone mirror to clone from (optional)
 #   --jobs           <N>       Parallel make jobs (default: nproc)
 #   --skip-build               Skip compile, use pre-existing build outputs
@@ -38,7 +47,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ---------------------------------------------------------------------------
 CROSS_COMPILE="aarch64-linux-gnu-"
 SYSROOT=""
-SRCREV="c95e09a"
+SRCREV="057b1a2"
 GIT_MIRROR=""
 GIT_REMOTE="https://git.ti.com/git/rpmsg/ti-rpmsg-char.git"
 JOBS="$(nproc)"

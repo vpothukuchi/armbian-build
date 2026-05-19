@@ -178,11 +178,88 @@ RUN mkdir -p /opt/arm64-sysroot/usr && \
         libavutil58:arm64 \
         libavutil-dev:arm64 \
         \
+        # zlib arm64 — libelf.pc (Requires.private chain for gstreamer-1.0) needs
+        # zlib.pc in the sysroot.  apt-get download unconditionally fetches the .deb
+        # regardless of whether the package is already installed on the host, unlike
+        # apt-get install -d which skips packages already at the newest version.
+        zlib1g:arm64 \
+        zlib1g-dev:arm64 \
+        \
+        # libtinfo6 arm64 — libtinfo6:arm64 is pre-installed in this Docker image
+        # (pulled in by the aarch64 cross-compile toolchain), so apt-get install -d
+        # silently skips it.  apt-get download forces the download so we can extract
+        # the versioned libtinfo.so.6 into the sysroot.  Without it, the
+        # libtinfo.so -> libtinfo.so.6 symlink installed by libtinfo-dev:arm64 is
+        # a dangling symlink and -ltinfo fails to link.
+        libtinfo6:arm64 \
+        \
     && for f in /tmp/*.deb; do \
            dpkg-deb -x "${f}" /opt/arm64-sysroot/; \
            rm "${f}"; \
        done \
+    # GStreamer arm64 — use apt-get install -d (not apt-get download) to resolve
+    # the full transitive dependency tree: libpcre2-8 (glib-2.0 Requires.private),
+    # libdw (gstreamer-1.0 Requires.private), libffi (gobject-2.0), liborc, etc.
+    # Downloads go to /var/cache/apt/archives/; extract only *_arm64.deb files.
+    # Ubuntu Noble: libglib2.0-0t64 (64-bit time_t variant replaces libglib2.0-0).
+    && apt-get install -d -y --no-install-recommends \
+        libglib2.0-0t64:arm64 \
+        libglib2.0-dev:arm64 \
+        libgstreamer1.0-0:arm64 \
+        libgstreamer1.0-dev:arm64 \
+        libgstreamer-plugins-base1.0-0:arm64 \
+        libgstreamer-plugins-base1.0-dev:arm64 \
+        \
+        # OpenCV arm64 — edgeai-gst-apps links opencv_core and opencv_imgproc.
+        # Headers install to /usr/include/opencv4/ (Ubuntu Noble 4.0.6t64).
+        libopencv-core406t64:arm64 \
+        libopencv-core-dev:arm64 \
+        libopencv-imgproc406t64:arm64 \
+        libopencv-imgproc-dev:arm64 \
+        \
+        # ncurses/tinfo arm64 — edgeai-gst-apps links -lncurses and -ltinfo.
+        libncurses6:arm64 \
+        libncurses-dev:arm64 \
+        libtinfo-dev:arm64 \
+        \
+        # BLAS/LAPACK arm64 — Ubuntu Noble libopencv-core406t64:arm64 has DT_NEEDED
+        # on liblapack.so.3 and libblas.so.3 (Yocto OpenCV does not).  The cross-
+        # linker must be able to resolve these transitive references; without them,
+        # undefined-reference errors on cblas_dgemm, dgeqrf_, etc. abort the link.
+        # libgfortran5:arm64 is a runtime dep of liblapack3:arm64.
+        libblas3:arm64 \
+        liblapack3:arm64 \
+        libgfortran5:arm64 \
+    && for f in /var/cache/apt/archives/*_arm64.deb; do \
+           [ -f "${f}" ] || continue; \
+           dpkg-deb -x "${f}" /opt/arm64-sysroot/ || true; \
+           rm "${f}"; \
+       done \
+    && rm -rf /var/cache/apt/archives/partial \
     && rm -rf /var/lib/apt/lists/* \
+    # Create SONAME symlinks for BLAS and LAPACK.
+    # Ubuntu Noble installs libblas.so.3.x.y in blas/ and liblapack.so.3.x.y in
+    # lapack/ subdirectories.  The SONAME symlinks (e.g. libblas.so.3) are normally
+    # created by ldconfig at install time, not by the package itself.  Since ldconfig
+    # is not run on the cross-compile sysroot, create them manually so the linker
+    # can resolve DT_NEEDED entries from libopencv_core.so.
+    && for f in \
+           /opt/arm64-sysroot/usr/lib/aarch64-linux-gnu/blas/lib*.so.3.* \
+           /opt/arm64-sysroot/usr/lib/aarch64-linux-gnu/lapack/lib*.so.3.*; do \
+           [ -f "${f}" ] || continue; \
+           subdir="$(basename "$(dirname "${f}")")"; \
+           name="$(basename "${f}")"; \
+           soname="${name%.*}"; soname="${soname%.*}"; \
+           dest="/opt/arm64-sysroot/usr/lib/aarch64-linux-gnu/${soname}"; \
+           [ -e "${dest}" ] || ln -sf "${subdir}/${name}" "${dest}"; \
+       done \
+    # Re-establish /lib → usr/lib symlink.  dpkg-deb -x of libc6:arm64 replaces the
+    # symlink (created above) with an empty directory.  Glibc linker scripts
+    # (libm.so, libpthread.so, librt.so) contain GROUP entries that reference
+    # /lib/aarch64-linux-gnu/... paths; the cross-linker prepends the sysroot
+    # to those absolute paths, so they must resolve via this symlink.
+    && rm -rf /opt/arm64-sysroot/lib \
+    && ln -sf usr/lib /opt/arm64-sysroot/lib \
     # cmake/common.cmake in edgeai-tiovx-apps sets
     # CMAKE_FIND_LIBRARY_SUFFIXES ".a" ".lib" ".so", so CMake prefers static
     # archives over shared libraries.  Static C++ libs (yaml-cpp, avcodec, …)
