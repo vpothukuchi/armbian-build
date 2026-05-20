@@ -234,6 +234,27 @@ build_from_source() {
     make -j"${JOBS}" "${MAKE_VARS[@]}" -C "${SDK_PATH}/vision_apps" tivision_apps \
         2>&1 | tee -a "${SCRIPT_DIR}/build-from-source.log"
 
+    # Build vx_app_* ARM utility executables (mirrors yocto_build targets in
+    # makefile_linux_arm.mak lines 394-400).  yocto_install (linux_fs_stage
+    # YOCTO_STAGE=1) copies *.out from the build output dir; without these
+    # targets the staging only gets scripts, not the ARM executables.
+    # Allow individual targets to fail — build continues with what compiled.
+    make -j"${JOBS}" "${MAKE_VARS[@]}" -C "${SDK_PATH}/vision_apps" \
+        vx_app_arm_remote_log vx_app_arm_ipc vx_app_arm_mem \
+        vx_app_arm_fd_exchange_consumer vx_app_arm_fd_exchange_producer \
+        vx_app_c7x_kernel vx_app_heap_stats vx_app_load_test vx_app_viss \
+        vx_app_conformance vx_app_conformance_core vx_app_conformance_hwa \
+        vx_app_conformance_tidl \
+        2>&1 | tee -a "${SCRIPT_DIR}/build-from-source.log" || \
+        warn "Some vx_app_* builds failed (non-fatal; included apps depend on what compiled)"
+
+    if [[ "${SOC}" != "am62a" ]]; then
+        make -j"${JOBS}" "${MAKE_VARS[@]}" -C "${SDK_PATH}/vision_apps" \
+            vx_app_conformance_video_io \
+            2>&1 | tee -a "${SCRIPT_DIR}/build-from-source.log" || \
+            warn "vx_app_conformance_video_io build failed (non-fatal)"
+    fi
+
     info "=== Build complete ==="
     cd "${SCRIPT_DIR}"
 }
@@ -306,8 +327,6 @@ package_debs() {
     if [[ -d "${INC_SRC}" ]]; then
         cp -a "${INC_SRC}" "${SCRIPT_DIR}/staging/dev/usr/include/"
     fi
-
-    ln -snf "${SCRIPT_DIR}/staging" "${SCRIPT_DIR}/staging"
 
     info "  Running dpkg-buildpackage..."
     dpkg-buildpackage \

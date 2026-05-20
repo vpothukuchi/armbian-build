@@ -96,6 +96,78 @@ function pre_customize_image__install_vision_apps_scripts() {
 	display_alert "Installed /opt/vision_apps/setup.sh" "" "info"
 }
 
+function pre_customize_image__configure_networking() {
+	# Ubuntu Noble ships NetworkManager with a default policy in
+	# /usr/lib/NetworkManager/conf.d/10-globally-managed-devices.conf that
+	# sets: unmanaged-devices=*,except:type:wifi,except:type:wwan
+	# This leaves all Ethernet devices unmanaged even when NM is running.
+	# Override it to also manage ethernet interfaces.
+	local nm_conf_d="${SDCARD}/etc/NetworkManager/conf.d"
+	local nm_conn_d="${SDCARD}/etc/NetworkManager/system-connections"
+	run_host_command_logged "mkdir -p ${nm_conf_d} ${nm_conn_d}"
+
+	cat > "${nm_conf_d}/99-ti-k3-managed.conf" << 'EOF'
+[keyfile]
+# Manage all Ethernet devices — Ubuntu Noble marks them unmanaged by default.
+unmanaged-devices=*,except:type:wifi,except:type:wwan,except:type:ethernet
+EOF
+
+	# systemd-resolved causes a boot hang on K3 (Type=notify, blocks
+	# multi-user.target).  Use NM's built-in DNS writer instead.
+	cat > "${nm_conf_d}/10-dns-default.conf" << 'EOF'
+[main]
+dns=default
+EOF
+
+	# Ubuntu Noble's /etc/resolv.conf is a symlink → systemd-resolved stub.
+	# Since we mask systemd-resolved, that stub never exists and DNS breaks.
+	# Replace the symlink with one pointing to NM's generated file so DNS
+	# works on first boot without systemd-resolved.
+	run_host_command_logged "rm -f ${SDCARD}/etc/resolv.conf"
+	run_host_command_logged "ln -sf /run/NetworkManager/resolv.conf ${SDCARD}/etc/resolv.conf"
+	display_alert "Replaced resolv.conf symlink" "→ /run/NetworkManager/resolv.conf" "info"
+
+	# Create a DHCP profile bound to eth0 — the J784S4 CPSW switch exposes
+	# eth2/eth3 as additional ethernet interfaces.  A generic type=ethernet
+	# profile without interface-name gets stolen by those switch ports before
+	# eth0 is connected, leaving the main port with no IP.  Binding to eth0
+	# by interface-name ensures the DHCP profile always activates on the
+	# correct physical port.
+	if [[ -z "$(ls "${nm_conn_d}"/*.nmconnection 2>/dev/null)" ]]; then
+		cat > "${nm_conn_d}/wired-dhcp.nmconnection" << 'EOF'
+[connection]
+id=wired-dhcp
+type=ethernet
+interface-name=eth0
+autoconnect=true
+autoconnect-priority=-100
+
+[ethernet]
+
+[ipv4]
+method=auto
+
+[ipv6]
+addr-gen-mode=stable-privacy
+method=auto
+EOF
+		run_host_command_logged "chmod 600 ${nm_conn_d}/wired-dhcp.nmconnection"
+		display_alert "Created NM wired-dhcp.nmconnection" "DHCP on eth0" "info"
+	fi
+
+	display_alert "NetworkManager configured for ethernet management" "" "info"
+}
+
+function pre_customize_image__install_ti_scripts() {
+	# Install TI helper scripts to /opt/scripts/ on the image.
+	# These are optional utilities; they do not run automatically.
+	run_host_command_logged "mkdir -p ${SDCARD}/opt/scripts"
+	run_host_command_logged "install -m 755 \
+		${SRC}/packages/bsp/ti/install_ros.sh \
+		${SDCARD}/opt/scripts/install_ros.sh"
+	display_alert "Installed TI scripts" "/opt/scripts/" "info"
+}
+
 function pre_customize_image__enable_services() {
 	# Weston: only install and enable if the binary is present in the image.
 	# Enabling a missing binary puts systemd in degraded state and causes
@@ -125,11 +197,16 @@ function pre_customize_image__enable_services() {
 	# sysinit.target.wants; generates networkd config but networkd is masked,
 	# stalling sysinit.target -> basic.target.
 	#
+	# systemd-resolved: Type=notify; fails to send the notification on K3 in
+	# time, which blocks multi-user.target indefinitely.  DNS is handled by NM
+	# directly (dns=default in 10-dns-default.conf).
+	#
 	# armbian-resize-filesystem: calls fdisk on the mounted root which changes
 	# MBR disk signatures; all PARTUUIDs change and partprobe hangs on K3 eMMC.
 	chroot_sdcard "systemctl mask systemd-networkd.service"          || display_alert "systemctl mask systemd-networkd.service failed"
 	chroot_sdcard "systemctl mask systemd-networkd.socket"           || display_alert "systemctl mask systemd-networkd.socket failed"
 	chroot_sdcard "systemctl mask systemd-network-generator.service" || display_alert "systemctl mask systemd-network-generator.service failed"
+	chroot_sdcard "systemctl mask systemd-resolved.service"          || display_alert "systemctl mask systemd-resolved.service failed"
 	chroot_sdcard "systemctl mask armbian-resize-filesystem.service" || display_alert "systemctl mask armbian-resize-filesystem.service failed"
 
 	# Watchdog: install hardware watchdog config and enable the daemon.

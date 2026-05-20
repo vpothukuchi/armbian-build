@@ -25,14 +25,12 @@ override_dh_auto_install:
 	cp -a staging/dev/usr/include/. debian/libtivision-apps-dev/usr/include/
 
 	# --- ti-vision-apps-data: opt/imaging DCC bins + opt/vision_apps ---
+	# vx_app_*.out binaries are built by build-from-source.sh and staged
+	# into staging/runtime/opt/vision_apps/ by the SDK's linux_fs_stage
+	# target — they end up at /opt/vision_apps/ on the target.
 	install -d debian/ti-vision-apps-data/opt
 	cp -a staging/runtime/opt/imaging debian/ti-vision-apps-data/opt/
 	cp -a staging/runtime/opt/vision_apps debian/ti-vision-apps-data/opt/
-	# The standalone vx_app_arm_remote_log.out at /opt/
-	if [ -f staging/runtime/opt/vx_app_arm_remote_log.out ]; then \
-	    install -m 755 staging/runtime/opt/vx_app_arm_remote_log.out \
-	        debian/ti-vision-apps-data/opt/; \
-	fi
 
 override_dh_strip:
 	# Prebuilt binaries — do not strip (already stripped by Yocto)
