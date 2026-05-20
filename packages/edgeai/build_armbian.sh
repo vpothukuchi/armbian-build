@@ -113,6 +113,9 @@
 #   # Clean including the large ti-tidl-osrt download cache:
 #   bash packages/edgeai/build_armbian.sh --clean --clean-downloads
 #
+#   # Full clean including Armbian rootfs + apt cache (forces complete image rebuild):
+#   bash packages/edgeai/build_armbian.sh --clean --clean-downloads --clean-cache
+#
 #   # No-Docker build (UNTESTED):
 #   bash packages/edgeai/build_armbian.sh --no-docker \
 #                         --sysroot /opt/arm64-sysroot \
@@ -123,6 +126,8 @@
 #   --no-docker             Build EdgeAI packages directly on host (see prerequisites above)
 #   --clean                 Remove all generated build artifacts, then exit
 #   --clean-downloads       (with --clean) also delete ti-tidl-osrt download cache
+#   --clean-cache           (with --clean) also delete Armbian rootfs + apt cache
+#                           (forces full image rebuild; preserves cache/sources kernel tree)
 #   --skip-kernel           Skip Armbian base image build (kernel + u-boot)
 #   --skip-gpu              Skip all GPU package builds (G1/G2/G3)
 #   --skip-edgeai           Skip all EdgeAI package builds (base-pkgs + vision-apps + tidl + fw)
@@ -179,6 +184,7 @@ usage() {
 USE_DOCKER=""
 CLEAN=0
 CLEAN_DOWNLOADS=0
+CLEAN_CACHE=0
 SKIP_KERNEL=0
 SKIP_GPU=0
 SKIP_EDGEAI=0
@@ -202,6 +208,7 @@ while [[ $# -gt 0 ]]; do
         --no-docker)        USE_DOCKER=0;           shift ;;
         --clean)            CLEAN=1;                shift ;;
         --clean-downloads)  CLEAN_DOWNLOADS=1;      shift ;;
+        --clean-cache)      CLEAN_CACHE=1;          shift ;;
         --skip-kernel)      SKIP_KERNEL=1;          shift ;;
         --skip-gpu)         SKIP_GPU=1;             shift ;;
         --skip-edgeai)      SKIP_EDGEAI=1;          shift ;;
@@ -295,6 +302,15 @@ do_clean() {
     rm -rf  ./output/debs/extra \
             ./output/images \
             ./output/logs
+
+    if [[ "${CLEAN_CACHE}" -eq 1 ]]; then
+        echo "  Armbian rootfs + apt cache (--clean-cache) ..."
+        # These subdirs are created inside Docker containers and are root-owned.
+        sudo rm -rf ./cache/rootfs \
+                    ./cache/aptcache \
+                    ./cache/ccache \
+                    ./cache/memoize
+    fi
 
     echo "=== Clean complete ==="
 }
