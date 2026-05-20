@@ -1,12 +1,15 @@
 # EdgeAI Package Build Guide
 
-This document covers how to build the TI EdgeAI `.deb` packages and integrate
-them into an Armbian image for the j784s4-evm (and compatible) boards.
+This document covers how to build the TI EdgeAI and GPU `.deb` packages and
+integrate them into an Armbian image for the j784s4-evm (and compatible) boards.
 
 ## Build sequence
 
 ```
 B1  Armbian base image   — compile.sh (kernel, u-boot, firmware only)
+G1  ti-img-rogue-driver  — pvrsrvkm.ko out-of-tree module (needs B1 kernel)  ─┐
+G2  ti-img-rogue-umlibs  — pre-built arm64 userspace libs (GLES/Vulkan/OpenCL) │ GPU packages
+G3  ti-img-pvr-mesa-wsi  — Mesa PowerVR WSI + lavapipe, built from source     ─┘
 A1  ti-rpmsg-char        — autotools source build          ─┐
     ti-tidl-osrt         — TFLite + ONNX RT source build    │
 A2  ti-vision-apps       — SDK source build (needs A1)      │ TI base packages
@@ -17,11 +20,14 @@ E2  edgeai-tiovx-kernels — OpenVX kernels (A2+E1)          ─┘
 B2  Final Armbian image  — compile.sh + ENABLE_EXTENSIONS=ti-debpkgs
 ```
 
-B1 and A/E phases have no dependency on each other. B1 runs first because it
-is the longest step (~60 min). A1→A2→A3→E1→E2 must be sequential (each phase
-overlays the previous phase's `.deb` files into the build sysroot before
-compiling). B2 consumes all outputs: the B1 kernel/u-boot and all EdgeAI `.deb`
-files.
+B1 has no dependency on any EdgeAI or GPU package. G1 requires the kernel
+worktree produced by B1; G2 and G3 are independent. B1 is the longest step
+(~60 min) so it runs first. A1→A2→A3→E1→E2 must be sequential (each phase
+overlays the previous phase's `.deb` files into the build sysroot). B2
+consumes all outputs: B1 kernel/u-boot and all EdgeAI + GPU `.deb` files.
+
+All packages are built from source. No Yocto artifacts are used as build
+inputs.
 
 > **Note:** `edgeai-dl-inferer` is **not** built as a Debian package by
 > default. The `edgeai-robotics-sdk` always fetches and builds it from source
@@ -43,6 +49,16 @@ path and can be invoked from any working directory.
 
 ## Produced packages
 
+### GPU packages (`packages/gpu/`)
+
+| Package | Phase | Description |
+|---------|-------|-------------|
+| `ti-img-rogue-driver_25.2.6850647-1_arm64.deb` | G1 | pvrsrvkm.ko out-of-tree kernel module |
+| `ti-img-rogue-umlibs_25.2.6850647-1_arm64.deb` | G2 | OpenGL ES, Vulkan ICD, OpenCL, test tools, GPU firmware |
+| `ti-img-pvr-mesa-wsi_24.0.1-1_arm64.deb` | G3 | libpvr_mesa_wsi.so + libvulkan_lvp.so (lavapipe) |
+
+### EdgeAI packages (`packages/edgeai/`)
+
 | Package | Phase | Description |
 |---------|-------|-------------|
 | `libti-rpmsg-char0_0.6.10-1_arm64.deb` | A1 | RPMsg char runtime library |
@@ -54,7 +70,7 @@ path and can be invoked from any working directory.
 | `ti-vision-apps-data_11.02.03-1_arm64.deb` | A2 | Demo binaries + data files |
 | `ti-tidl_1.0.0-1_arm64.deb` | A3 | TIDL delegate .so libraries |
 | `ti-tidl-dev_1.0.0-1_arm64.deb` | A3 | TIDL delegate headers |
-| `ti-adas-firmware_1.0.0-1_all.deb` | FW | R5F MCU + C7x DSP RTOS firmware for vision_apps |
+| `ti-adas-firmware_1.0.0-4_all.deb` | FW | R5F MCU + C7x DSP RTOS firmware for vision_apps |
 | `edgeai-apps-utils_1.0.0-1_arm64.deb` | E1 | NEON utility lib + `/opt/edgeai-apps-utils/` |
 | `edgeai-apps-utils-dev_1.0.0-1_arm64.deb` | E1 | edgeai-apps-utils headers + link stubs |
 | `edgeai-tiovx-kernels_1.0.0-1_arm64.deb` | E2 | OpenVX custom kernels |
@@ -71,34 +87,37 @@ path and can be invoked from any working directory.
 
 ## Full orchestrated build (recommended)
 
-Use `packages/edgeai/build_armbian.sh` to run the full sequence. The script
-self-derives the armbian-build root from its own path, so it can be invoked
-from any working directory. It handles proxy setup and deb staging automatically.
+Use `packages/edgeai/build_armbian.sh` to run the full sequence. It handles
+proxy setup, GPU and EdgeAI builds, deb staging, and Armbian image generation.
 
 ```bash
-# Full build with local git mirror and SDK path:
+# Full build — all phases B1 + G1/G2/G3 + A1/A2/A3/FW/E1/E2 + B2:
 bash packages/edgeai/build_armbian.sh \
-    --mirror   /mnt/DATA/YOCTO/yocto-build/downloads/git2 \
-    --sdk-path /opt/ti-vision-apps-sdk
+    --sdk-path /mnt/DATA/UBUNTU/sdk_repos
 
-# Skip B1 (kernel already built), rebuild EdgeAI packages + final image:
+# Skip B1 (kernel already built), rebuild GPU + EdgeAI packages + final image:
 bash packages/edgeai/build_armbian.sh --skip-kernel \
-    --mirror   /mnt/DATA/YOCTO/yocto-build/downloads/git2 \
-    --sdk-path /opt/ti-vision-apps-sdk
+    --sdk-path /mnt/DATA/UBUNTU/sdk_repos
+
+# Skip GPU builds (already built):
+bash packages/edgeai/build_armbian.sh --skip-gpu \
+    --sdk-path /mnt/DATA/UBUNTU/sdk_repos
 
 # All debs already built — just regenerate the final image:
-bash packages/edgeai/build_armbian.sh --skip-kernel --skip-edgeai
+bash packages/edgeai/build_armbian.sh --skip-kernel --skip-gpu --skip-edgeai
 
-# EdgeAI packages only (no Armbian builds at all):
+# EdgeAI + GPU packages only (no Armbian builds at all):
 bash packages/edgeai/build_armbian.sh --skip-kernel --skip-image \
-    --sdk-path /opt/ti-vision-apps-sdk
+    --sdk-path /mnt/DATA/UBUNTU/sdk_repos
 ```
 
 ### build_armbian.sh options
 
 | Option | Effect |
 |--------|--------|
+| `--sdk-path <path>` | Local workspace dir for the ti-vision-apps SDK source repos. **Do not clone anything manually** — the build system runs `repo init` + `repo sync` into this directory on the first run (~15 min, ~2 GB). On subsequent runs the existing workspace is reused. |
 | `--skip-kernel` | Skip Armbian base image build (B1) |
+| `--skip-gpu` | Skip all GPU package builds (G1/G2/G3) |
 | `--skip-edgeai` | Skip all EdgeAI package builds (A1+A2+A3+FW+E1+E2) |
 | `--skip-base-pkgs` | Skip ti-rpmsg-char + ti-tidl-osrt (A1) only |
 | `--skip-vision-apps` | Skip ti-vision-apps (A2) only |
@@ -107,9 +126,8 @@ bash packages/edgeai/build_armbian.sh --skip-kernel --skip-image \
 | `--skip-edgeai-pkgs` | Skip E1+E2 packages (edgeai-apps-utils, edgeai-tiovx-kernels) |
 | `--skip-image` | Skip final Armbian image build (B2) |
 | `--skip-proxy` | Skip TI proxy setup (outside TI network) |
-| `--mirror <path>` | Local Yocto git2/ mirror (faster, offline-capable) |
-| `--sdk-path <path>` | Local workspace dir for the ti-vision-apps SDK source repos. **Do not clone anything manually** — the build system runs `repo init` + `repo sync` into this directory on the first run (~15 min, ~2 GB). On subsequent runs the existing workspace is reused. Provide an empty directory, or the path from a previous build. |
-| `--ipk-dir <path>` | Prebuilt Yocto IPK dir for ti-vision-apps (Docker only) |
+| `--mirror <path>` | Local bare-clone git mirror directory (faster, offline-capable) |
+| `--fw-dir <path>` | Prebuilt firmware directory containing `*.out` / `*.out.signed` files for ti-adas-firmware |
 | `--clean` | Remove all generated build artifacts, then exit |
 | `--clean-downloads` | (with `--clean`) also delete the ti-tidl-osrt download cache |
 | `--no-cache` | Force rebuild of the EdgeAI Docker image |
@@ -118,8 +136,8 @@ bash packages/edgeai/build_armbian.sh --skip-kernel --skip-image \
 
 ## Building individual packages with docker-build.sh
 
-`docker-build.sh` is the lower-level script that builds one package at a time
-inside the `ti-edgeai-build` Docker container. The Docker image is built
+`docker-build.sh` is the lower-level script that builds one EdgeAI package at
+a time inside the `ti-edgeai-build` Docker container. The Docker image is built
 automatically on first run.
 
 ```bash
@@ -136,10 +154,7 @@ cd packages/edgeai
 # A2 — provide an empty dir; build system runs repo init+sync there on first run
 #       (~15 min, ~2 GB); on subsequent runs the existing workspace is reused.
 #       Do NOT clone repos manually.
-./docker-build.sh --sdk-path /opt/ti-vision-apps-sdk ti-vision-apps
-
-# A2 using prebuilt Yocto IPKs instead of source build
-./docker-build.sh --prebuilt --ipk-dir /path/to/ipk ti-vision-apps
+./docker-build.sh --sdk-path /mnt/DATA/UBUNTU/sdk_repos ti-vision-apps
 
 # A3 — uses Docker-internal /opt/arm64-sysroot; overlays A1+A2 debs automatically
 ./docker-build.sh ti-tidl
@@ -163,10 +178,36 @@ cd packages/edgeai
 ./docker-build.sh edgeai-gst-apps
 
 # Build all in one shot (A1 → A2 → A3 → FW → E1 → E2)
-./docker-build.sh --sdk-path /opt/ti-vision-apps-sdk all
+./docker-build.sh --sdk-path /mnt/DATA/UBUNTU/sdk_repos all
 
 # Force Docker image rebuild
 ./docker-build.sh --no-cache ti-rpmsg-char
+```
+
+### GPU packages (packages/gpu/)
+
+GPU packages are built directly via Docker, not through `docker-build.sh`:
+
+```bash
+# G1 — pvrsrvkm.ko (requires kernel worktree from B1)
+KERNEL_DIR="cache/sources/linux-kernel-worktree/6.12__k3__arm64"
+docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v "$(pwd)/packages/gpu/ti-img-rogue-driver:/workspace" \
+    -v "${KERNEL_DIR}:/kernel:ro" \
+    ti-edgeai-build:noble \
+    bash -c "cd /workspace && ./build-from-source.sh --kernel-dir /kernel"
+
+# G2 — pre-built arm64 userspace libs
+docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v "$(pwd)/packages/gpu/ti-img-rogue-umlibs:/workspace" \
+    ti-edgeai-build:noble \
+    bash -c "cd /workspace && ./build-from-source.sh"
+
+# G3 — Mesa PowerVR WSI + lavapipe (cross-compiled from source)
+docker run --rm --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v "$(pwd)/packages/gpu/mesa-pvr:/workspace" \
+    ti-edgeai-build:noble \
+    bash -c "cd /workspace && ./build-from-source.sh"
 ```
 
 ### What docker-build.sh does between phases
@@ -181,7 +222,7 @@ equivalent of Yocto's `do_populate_sysroot` mechanism.
 ### Git mirror directory
 
 Pass `--mirror` to speed up builds or enable offline operation. The directory
-should contain Yocto-style bare-clone repos:
+should contain bare-clone repos:
 
 | Package | Mirror basename |
 |---------|----------------|
@@ -213,13 +254,14 @@ cd /mnt/DATA/UBUNTU/armbian-build
     SHARE_LOG=yes
 ```
 
-### B2 — Final image with all EdgeAI packages installed
+### B2 — Final image with all EdgeAI + GPU packages installed
 
 Stage the built `.deb` files first, then add `ENABLE_EXTENSIONS=ti-debpkgs`:
 
 ```bash
 mkdir -p output/debs/extra
 cp packages/edgeai/*.deb output/debs/extra/
+cp packages/gpu/**/*.deb output/debs/extra/
 
 ./compile.sh build \
     BOARD=j784s4-evm \
@@ -242,17 +284,20 @@ dependencies automatically.
 
 ## Incremental builds
 
-The B and A pipelines are independent until B2. Only rebuild what changed:
+The B, G, and A pipelines are independent until B2. Only rebuild what changed:
 
 | What changed | What to rebuild |
 |---|---|
 | Kernel config, u-boot, board patches | B1 only (then B2) |
-| ti-rpmsg-char source | `--skip-kernel --skip-vision-apps --skip-tidl --skip-edgeai-pkgs` then B2 |
-| ti-tidl-osrt source or patches | `--skip-kernel --skip-vision-apps --skip-tidl --skip-edgeai-pkgs` then B2 |
-| ti-vision-apps source | `--skip-kernel --skip-base-pkgs` (A2+A3+E1+E2+B2) |
-| ti-tidl source | `--skip-kernel --skip-base-pkgs --skip-vision-apps` (A3+E1+E2+B2) |
-| edgeai-apps-utils source | `--skip-kernel --skip-base-pkgs --skip-vision-apps --skip-tidl --skip-fw` (E1+E2+B2) |
-| edgeai-tiovx-kernels source | `--skip-kernel --skip-base-pkgs --skip-vision-apps --skip-tidl` then B2 |
+| pvrsrvkm.ko (GPU driver) | `--skip-edgeai` (G1 only, then B2) |
+| GPU userspace libs | `--skip-kernel --skip-edgeai` (G2 only, then B2) |
+| Mesa PVR WSI | `--skip-kernel --skip-edgeai` (G3 only, then B2) |
+| ti-rpmsg-char source | `--skip-kernel --skip-gpu --skip-vision-apps --skip-tidl --skip-edgeai-pkgs` then B2 |
+| ti-tidl-osrt source | `--skip-kernel --skip-gpu --skip-vision-apps --skip-tidl --skip-edgeai-pkgs` then B2 |
+| ti-vision-apps source | `--skip-kernel --skip-gpu --skip-base-pkgs` (A2+A3+E1+E2+B2) |
+| ti-tidl source | `--skip-kernel --skip-gpu --skip-base-pkgs --skip-vision-apps` (A3+E1+E2+B2) |
+| edgeai-apps-utils source | `--skip-kernel --skip-gpu --skip-base-pkgs --skip-vision-apps --skip-tidl --skip-fw` (E1+E2+B2) |
+| edgeai-tiovx-kernels source | `--skip-kernel --skip-gpu --skip-base-pkgs --skip-vision-apps --skip-tidl` then B2 |
 | edgeai-dl-inferer source | Not applicable — not packaged; rebuilt by edgeai-robotics-sdk via CPM |
 | Only Debian packaging metadata | Rebuild the affected package only, then B2 |
 | Everything | Full build (no skip flags) |
@@ -273,10 +318,11 @@ cd packages/edgeai/ti-tidl-osrt
 
 See the prerequisites section at the top of `packages/edgeai/build_armbian.sh`
 for the complete list of host packages, OE compat shim setup, and arm64 sysroot
-creation steps. Once prerequisites are met, invoke:
+creation steps. GPU package builds (G1/G2/G3) always require Docker and are
+skipped in `--no-docker` mode. Once prerequisites are met, invoke:
 
 ```bash
 bash packages/edgeai/build_armbian.sh --no-docker \
     --sysroot /opt/arm64-sysroot \
-    --sdk-path /opt/ti-vision-apps-sdk
+    --sdk-path /mnt/DATA/UBUNTU/sdk_repos
 ```
