@@ -58,6 +58,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libstb-dev \
     nlohmann-json3-dev \
     \
+    # Mesa PVR WSI build: Python template processing + SPIR-V tools + Vulkan headers
+    python3-mako \
+    glslang-tools \
+    vulkan-headers \
+    bison \
+    flex \
+    \
     # Misc
     ca-certificates \
     file \
@@ -184,6 +191,16 @@ RUN mkdir -p /opt/arm64-sysroot/usr && \
         # apt-get install -d which skips packages already at the newest version.
         zlib1g:arm64 \
         zlib1g-dev:arm64 \
+        \
+        # expat arm64 — Mesa pvr WSI xmlconfig needs libexpat.
+        libexpat1:arm64 \
+        libexpat1-dev:arm64 \
+        \
+        # Vulkan + Wayland arm64 — Mesa pvr WSI Vulkan ICD integration.
+        libvulkan1:arm64 \
+        libvulkan-dev:arm64 \
+        libwayland-dev:arm64 \
+        libwayland-client0:arm64 \
         \
         # libtinfo6 arm64 — libtinfo6:arm64 is pre-installed in this Docker image
         # (pulled in by the aarch64 cross-compile toolchain), so apt-get install -d

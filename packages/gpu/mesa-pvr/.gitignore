@@ -1,0 +1,9 @@
+src/
+build/
+staging/
+*.ini
+ti-img-pvr-mesa-wsi_*/
+*.deb
+*.buildinfo
+*.changes
+*.log
