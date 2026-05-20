@@ -31,7 +31,6 @@
 #   A2 feeds into A3 (vision-apps headers overlaid into sysroot before ti-tidl).
 #   B2 consumes all outputs: B1 kernel/uboot + all EdgeAI + GPU .deb files.
 #
-# Proxy setup runs once before the first compile.sh invocation (idempotent).
 # All EdgeAI and GPU .deb files are staged into output/debs/extra/ before B2.
 #
 # ============================================================================
@@ -136,7 +135,6 @@
 #   --skip-tidl             Skip ti-tidl only
 #   --skip-fw               Skip ti-adas-firmware only
 #   --skip-image            Skip final Armbian image build
-#   --skip-proxy            Skip proxy setup (use when outside TI network)
 #   --mirror <path>         Local bare-clone git mirror directory
 #   --no-cache              Force rebuild of the EdgeAI Docker image (Docker mode only)
 #   --sdk-path <path>       Where to store the ti-vision-apps SDK source workspace.
@@ -194,7 +192,6 @@ SKIP_TIDL=0
 SKIP_FW=0
 SKIP_EDGEAI_PKGS=0
 SKIP_IMAGE=0
-SKIP_PROXY=0
 MIRROR_DIR=""
 NO_CACHE=""
 SDK_PATH=""
@@ -218,7 +215,6 @@ while [[ $# -gt 0 ]]; do
         --skip-fw)          SKIP_FW=1;              shift ;;
         --skip-edgeai-pkgs) SKIP_EDGEAI_PKGS=1;     shift ;;
         --skip-image)       SKIP_IMAGE=1;           shift ;;
-        --skip-proxy)       SKIP_PROXY=1;           shift ;;
         --mirror)           MIRROR_DIR="$2";        shift 2 ;;
         --no-cache)         NO_CACHE="--no-cache";  shift ;;
         --sdk-path)         SDK_PATH="$2";          shift 2 ;;
@@ -295,7 +291,8 @@ do_clean() {
             "./packages/gpu/ti-img-rogue-driver/build-from-source.log"
     rm -f   "./packages/gpu/ti-img-rogue-driver"/*.deb
     rm -f   "./packages/gpu/ti-img-rogue-umlibs"/*.deb
-    rm -rf  "./packages/gpu/mesa-pvr/staging"
+    rm -rf  "./packages/gpu/mesa-pvr/build" \
+            "./packages/gpu/mesa-pvr/staging"
     rm -f   "./packages/gpu/mesa-pvr"/*.deb
 
     echo "  Armbian output artifacts ..."
@@ -305,11 +302,19 @@ do_clean() {
 
     if [[ "${CLEAN_CACHE}" -eq 1 ]]; then
         echo "  Armbian rootfs + apt cache (--clean-cache) ..."
-        # These subdirs are created inside Docker containers and are root-owned.
-        sudo rm -rf ./cache/rootfs \
-                    ./cache/aptcache \
-                    ./cache/ccache \
-                    ./cache/memoize
+        # These subdirs are created inside Docker containers and are root-owned;
+        # sudo is required.  If sudo is unavailable (e.g. non-interactive CI),
+        # print a warning and continue — the user can clear them manually with:
+        #   sudo rm -rf cache/rootfs cache/aptcache cache/ccache cache/memoize
+        if sudo rm -rf ./cache/rootfs \
+                        ./cache/aptcache \
+                        ./cache/ccache \
+                        ./cache/memoize; then
+            echo "  Armbian rootfs + apt cache removed."
+        else
+            echo "  WARNING: sudo rm failed; cache/rootfs etc. may still exist." \
+                 "Run manually: sudo rm -rf cache/rootfs cache/aptcache cache/ccache cache/memoize" >&2
+        fi
     fi
 
     echo "=== Clean complete ==="
@@ -436,57 +441,6 @@ compile_armbian() {
         "$@"
 }
 
-setup_proxy() {
-    echo ""
-    echo "=== Applying proxy settings ==="
-    local patch_file="./armbian-proxy.patch"
-
-    # Locate the patch file: prefer CWD (repo root), then next to this script, then download.
-    # After self-location cd, CWD is ARMBIAN_ROOT; SCRIPT_DIR is packages/edgeai/.
-    if [[ ! -f "${patch_file}" && -f "${SCRIPT_DIR}/armbian-proxy.patch" ]]; then
-        patch_file="${SCRIPT_DIR}/armbian-proxy.patch"
-        echo "[INFO] Using armbian-proxy.patch from ${SCRIPT_DIR}/"
-    fi
-
-    if [[ ! -f "${patch_file}" ]]; then
-        local url="http://swubn04.india.englab.ti.com/armbian-files/armbian-proxy.patch"
-        echo "[INFO] armbian-proxy.patch not found in ${ARMBIAN_ROOT}/ or ${SCRIPT_DIR}/"
-        echo "[INFO] Downloading from ${url} (timeout 20 s) ..."
-        if ! wget --timeout=20 --tries=1 -O "${patch_file}" "${url}"; then
-            rm -f "${patch_file}"   # remove incomplete file left by wget
-            echo "" >&2
-            echo "ERROR: Failed to download armbian-proxy.patch." >&2
-            echo "       Copy the file to ${ARMBIAN_ROOT}/armbian-proxy.patch" >&2
-            echo "       or ${SCRIPT_DIR}/armbian-proxy.patch" >&2
-            echo "       or run with --skip-proxy if proxy is not needed." >&2
-            exit 1
-        fi
-    fi
-
-    git restore --source=HEAD --staged --worktree \
-        lib/functions/general/python-tools.sh \
-        lib/functions/host/docker.sh \
-        lib/functions/rootfs/distro-agnostic.sh
-    git apply "${patch_file}"
-
-    echo "[INFO] Resolving proxy hostname (timeout 10 s)..."
-    local proxy_ip
-    proxy_ip=$(timeout 10 nslookup webproxy.ext.ti.com 2>/dev/null \
-                | awk '/^Address: /{print $2}' | tail -1)
-    if [[ -z "${proxy_ip}" ]]; then
-        echo "ERROR: Could not resolve webproxy.ext.ti.com — are you on the TI network?" >&2
-        echo "       Run with --skip-proxy if outside TI network." >&2
-        exit 1
-    fi
-
-    echo "[INFO] Proxy IP: ${proxy_ip}"
-    sed -i "s|172.16.172.136|${proxy_ip}|g" lib/functions/rootfs/distro-agnostic.sh
-    sed -i "s|172.16.172.136|${proxy_ip}|g" lib/functions/host/docker.sh
-    sed -i "s|webproxy.ext.ti.com|${proxy_ip}|g" lib/functions/general/python-tools.sh
-    export APT_PROXY_ADDR="${proxy_ip}:80"
-    echo "[INFO] APT_PROXY_ADDR=${APT_PROXY_ADDR}"
-}
-
 # ---------------------------------------------------------------------------
 # Print planned sequence
 # ---------------------------------------------------------------------------
@@ -509,11 +463,6 @@ echo "  Mode: $([ "${USE_DOCKER}" -eq 1 ] && echo 'Docker' || echo 'No-Docker (U
 [[ -n "${FW_DIR}" ]]        && echo "  FW dir:      ${FW_DIR}"
 [[ -n "${SYSROOT}" ]]       && echo "  Sysroot:     ${SYSROOT}"
 echo ""
-
-# Apply proxy before any compile.sh invocation
-if [[ "${SKIP_PROXY}" -eq 0 ]] && [[ "${SKIP_KERNEL}" -eq 0 || "${SKIP_IMAGE}" -eq 0 ]]; then
-    setup_proxy
-fi
 
 # ---------------------------------------------------------------------------
 # B1 — Armbian base image (kernel + u-boot; no EdgeAI packages)

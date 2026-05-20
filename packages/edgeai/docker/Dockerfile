@@ -61,7 +61,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Mesa PVR WSI build: Python template processing + SPIR-V tools + Vulkan headers
     python3-mako \
     glslang-tools \
-    vulkan-headers \
+    libvulkan-dev \
+    libwayland-bin \
+    libwayland-dev \
     bison \
     flex \
     \

@@ -33,3 +33,6 @@ ubuntu-*-cloudimg-console.log
 
 # EdgeAI package build artifacts
 packages/edgeai/**/*.debhelper.log
+
+# Local build notes (untracked)
+packages/edgeai/BUILD_TIMES.md
