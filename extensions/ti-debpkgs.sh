@@ -96,6 +96,23 @@ function pre_customize_image__install_vision_apps_scripts() {
 	display_alert "Installed /opt/vision_apps/setup.sh" "" "info"
 }
 
+function pre_customize_image__install_cadence_firmware() {
+	# Install Cadence MHDP8546 DP bridge firmware from ti-linux-firmware.
+	# CONFIG_DRM_CDNS_MHDP8546=m means the driver loads at userspace init time
+	# (after rootfs is mounted), so the firmware must be present on the rootfs.
+	# It is NOT in mainline linux-firmware/armbian-firmware, only ti-linux-firmware.
+	local fw_src="${SRC}/cache/sources/ti-linux-firmware/cadence/mhdp8546.bin"
+	if [[ -f "${fw_src}" ]]; then
+		run_host_command_logged "mkdir -p ${SDCARD}/usr/lib/firmware/cadence"
+		run_host_command_logged "install -m 644 ${fw_src} \
+			${SDCARD}/usr/lib/firmware/cadence/mhdp8546.bin"
+		display_alert "Installed cadence/mhdp8546.bin" "MHDP DP bridge firmware" "info"
+	else
+		display_alert "WARNING: cadence/mhdp8546.bin not found at ${fw_src}" "" "wrn"
+		display_alert "  Run: fetch_from_repo ... ti-linux-firmware first" "" "wrn"
+	fi
+}
+
 function pre_customize_image__configure_networking() {
 	# Ubuntu Noble ships NetworkManager with a default policy in
 	# /usr/lib/NetworkManager/conf.d/10-globally-managed-devices.conf that

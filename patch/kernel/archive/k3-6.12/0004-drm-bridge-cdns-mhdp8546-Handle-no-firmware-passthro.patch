@@ -1,0 +1,84 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vijay Pothukuchi <vijayp@ti.com>
+Date: Wed, 21 May 2026 00:00:00 +0000
+Subject: [PATCH] drm/bridge: cdns-mhdp8546: Handle no-firmware passthrough
+ mode for PSDK Analytics
+
+On J784S4 EVM with PSDK Analytics SYSFW (Fancy Rat, 11.02.x), the
+MHDP DP bridge MMIO SRAM (first 128 KB at 0xa000000) is firewalled for
+the A72 host.  Any attempt by Linux to write the Cadence MHDP8546
+firmware image into that SRAM via memcpy_toio() causes the SoC firewall
+to raise an Asynchronous SError Interrupt, crashing the kernel.
+
+With CONFIG_DRM_CDNS_MHDP8546=y the firmware write happens at
+device_initcall time.  Even without the write (firmware absent,
+error -ENOENT), cdns_mhdp_fw_cb() returns without setting
+mhdp->plugged, so the DRM connector remains permanently "disconnected".
+The downstream TIDSS bridge cannot find any encoder/connector chain and
+Weston fails to start with "DRM: head 'DP-1' found, connector N is
+disconnected."
+
+However, U-Boot initializes the MHDP firmware (writing it to SRAM
+before SYSFW locks the firewall) and trains the DP link during its
+display initialisation.  That firmware remains running across the Linux
+boot.  AUX channel and mailbox operations therefore work from Linux
+even though the SRAM is subsequently firewalled.
+
+Fix by entering a "no-firmware passthrough" mode when the firmware file
+is absent:
+
+  cdns_mhdp_fw_cb(): when fw is NULL, set mhdp->plugged = true under
+  the start_lock spinlock and wake fw_load_wq.  hw_state intentionally
+  remains MHDP_HW_STOPPED so that cdns_mhdp_attach() does NOT enable
+  the HPD SW-event interrupt.  Enabling HPD would trigger
+  cdns_mhdp_update_link_status() -> cdns_mhdp_link_up() before EDID is
+  read, leaving stale mailbox responses that cause DPTX_GET_EDID to
+  fail with -EINVAL.
+
+  cdns_mhdp_atomic_enable() calls cdns_mhdp_link_up() when
+  mhdp->plugged && !mhdp->link_up, independently of hw_state, so link
+  training proceeds correctly once the compositor sets a mode.  If no
+  firmware is running at all, the mailbox operations in
+  cdns_mhdp_link_up() will time out and return an error, which the
+  existing goto-out handling catches gracefully.
+
+With these changes:
+  - DRM connector DP-1 reports "connected".
+  - EDID is read via AUX (U-Boot firmware handles the mailbox request),
+    exposing the monitor's native resolution (e.g. 2560x1440).
+  - cdns_mhdp_link_up() trains the DP link using the existing firmware
+    when the compositor first sets a mode (not on HPD interrupt).
+  - TIDSS DMA scanout produces physical display output on DP0.
+
+Upstream-Status: Inappropriate [TI J784S4 EVM PSDK Analytics SYSFW display enablement]
+
+Signed-off-by: Vijay Pothukuchi <vijayp@ti.com>
+---
+ drivers/gpu/drm/bridge/cadence/cdns-mhdp8546-core.c | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/drivers/gpu/drm/bridge/cadence/cdns-mhdp8546-core.c b/drivers/gpu/drm/bridge/cadence/cdns-mhdp8546-core.c
+--- a/drivers/gpu/drm/bridge/cadence/cdns-mhdp8546-core.c
++++ b/drivers/gpu/drm/bridge/cadence/cdns-mhdp8546-core.c
+@@ -791,6 +791,21 @@
+
+ 	if (!fw || !fw->data) {
+ 		dev_err(mhdp->dev, "%s: No firmware.\n", __func__);
++		/* No firmware image on the filesystem, but U-Boot may have
++		 * loaded MHDP firmware into SRAM before the PSDK Analytics
++		 * SYSFW firewall locked the MHDP SRAM for the A72 host.
++		 * Set plugged=true so the DRM connector reports "connected"
++		 * and EDID can be read via AUX.  Leave hw_state as
++		 * MHDP_HW_STOPPED intentionally: this prevents attach() from
++		 * enabling the HPD interrupt, which would trigger early link
++		 * training and corrupt the EDID mailbox exchange.
++		 * cdns_mhdp_atomic_enable() triggers link training via the
++		 * plugged && !link_up path when the compositor sets a mode.
++		 */
++		spin_lock(&mhdp->start_lock);
++		mhdp->plugged = true;
++		spin_unlock(&mhdp->start_lock);
++		wake_up(&mhdp->fw_load_wq);
+ 		return;
+ 	}
+
