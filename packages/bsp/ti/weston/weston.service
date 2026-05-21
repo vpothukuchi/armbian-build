@@ -39,9 +39,9 @@ Type=simple
 EnvironmentFile=/etc/default/weston
 ExecStart=/usr/bin/weston --backend=drm-backend.so --continue-without-input --idle-time=0
 
-# Optional watchdog setup
-#TimeoutStartSec=60
-#WatchdogSec=20
+# Restart automatically if Weston exits (e.g. no display at boot, then one is connected).
+Restart=on-failure
+RestartSec=5
 
 # The user to run Weston as.
 User=root
