@@ -233,7 +233,7 @@ fi
 # Clean
 # ---------------------------------------------------------------------------
 do_clean() {
-    echo "=== Cleaning build artifacts ==="
+    phase "=== Cleaning build artifacts ==="
     local pkg_dir="./packages/edgeai"
 
     echo "  ti-rpmsg-char ..."
@@ -317,7 +317,7 @@ do_clean() {
         fi
     fi
 
-    echo "=== Clean complete ==="
+    phase "=== Clean complete ==="
 }
 
 if [[ "${CLEAN}" -eq 1 ]]; then
@@ -442,10 +442,15 @@ compile_armbian() {
 }
 
 # ---------------------------------------------------------------------------
+# Phase marker — always includes a timestamp for parse_build_log.py
+# ---------------------------------------------------------------------------
+phase() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
+
+# ---------------------------------------------------------------------------
 # Print planned sequence
 # ---------------------------------------------------------------------------
 echo ""
-echo "=== Build sequence ==="
+phase "=== Build sequence ==="
 echo "  Mode: $([ "${USE_DOCKER}" -eq 1 ] && echo 'Docker' || echo 'No-Docker (UNTESTED)')"
 [[ "${SKIP_KERNEL}" -eq 0 ]]        && echo "  B1) Armbian base image (kernel + u-boot)"
 [[ "${SKIP_GPU}" -eq 0 ]]          && echo "  G1) ti-img-rogue-driver (pvrsrvkm.ko)"
@@ -469,7 +474,7 @@ echo ""
 # ---------------------------------------------------------------------------
 if [[ "${SKIP_KERNEL}" -eq 0 ]]; then
     echo ""
-    echo "=== B1: Armbian base image ==="
+    phase "=== B1: Armbian base image ==="
     compile_armbian
 fi
 
@@ -486,7 +491,7 @@ if [[ "${SKIP_GPU}" -eq 0 ]]; then
         echo "[WARN] GPU package builds require Docker — skipping G1/G2/G3 in no-docker mode."
     else
         echo ""
-        echo "=== G1: ti-img-rogue-driver ==="
+        phase "=== G1: ti-img-rogue-driver ==="
         KERNEL_WORKTREE=$(ls -d \
             "${ARMBIAN_ROOT}/cache/sources/linux-kernel-worktree/"*__k3__arm64 \
             2>/dev/null | head -1 || true)
@@ -504,14 +509,14 @@ if [[ "${SKIP_GPU}" -eq 0 ]]; then
         fi
 
         echo ""
-        echo "=== G2: ti-img-rogue-umlibs ==="
+        phase "=== G2: ti-img-rogue-umlibs ==="
         docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "${ARMBIAN_ROOT}/packages/gpu/ti-img-rogue-umlibs:/workspace" \
             ti-edgeai-build:noble \
             bash -c "cd /workspace && ./build-from-source.sh"
 
         echo ""
-        echo "=== G3: ti-img-pvr-mesa-wsi ==="
+        phase "=== G3: ti-img-pvr-mesa-wsi ==="
         docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "${ARMBIAN_ROOT}/packages/gpu/mesa-pvr:/workspace" \
             ti-edgeai-build:noble \
@@ -524,7 +529,7 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${SKIP_BASE_PKGS}" -eq 0 ]]; then
     echo ""
-    echo "=== A1: ti-rpmsg-char + ti-tidl-osrt ==="
+    phase "=== A1: ti-rpmsg-char + ti-tidl-osrt ==="
 
     if [[ "${USE_DOCKER}" -eq 1 ]]; then
         DOCKER_ARGS=()
@@ -548,7 +553,7 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${SKIP_VISION_APPS}" -eq 0 ]]; then
     echo ""
-    echo "=== A2: ti-vision-apps ==="
+    phase "=== A2: ti-vision-apps ==="
 
     if [[ "${USE_DOCKER}" -eq 1 ]]; then
         DOCKER_ARGS=()
@@ -577,7 +582,7 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${SKIP_TIDL}" -eq 0 ]]; then
     echo ""
-    echo "=== A3: ti-tidl ==="
+    phase "=== A3: ti-tidl ==="
 
     if [[ "${USE_DOCKER}" -eq 1 ]]; then
         DOCKER_ARGS=()
@@ -604,7 +609,7 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${SKIP_FW}" -eq 0 ]]; then
     echo ""
-    echo "=== FW: ti-adas-firmware ==="
+    phase "=== FW: ti-adas-firmware ==="
 
     if [[ "${USE_DOCKER}" -eq 1 ]]; then
         DOCKER_ARGS=()
@@ -627,7 +632,7 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${SKIP_EDGEAI_PKGS}" -eq 0 ]]; then
     echo ""
-    echo "=== E1: edgeai-apps-utils ==="
+    phase "=== E1: edgeai-apps-utils ==="
 
     if [[ "${USE_DOCKER}" -eq 1 ]]; then
         DOCKER_ARGS=()
@@ -640,7 +645,7 @@ if [[ "${SKIP_EDGEAI_PKGS}" -eq 0 ]]; then
     fi
 
     echo ""
-    echo "=== E2: edgeai-tiovx-kernels ==="
+    phase "=== E2: edgeai-tiovx-kernels ==="
 
     if [[ "${USE_DOCKER}" -eq 1 ]]; then
         DOCKER_ARGS=()
@@ -663,13 +668,13 @@ fi
 # ---------------------------------------------------------------------------
 if [[ "${SKIP_IMAGE}" -eq 0 ]]; then
     echo ""
-    echo "=== B2: Final Armbian image (all EdgeAI debs) ==="
+    phase "=== B2: Final Armbian image (all EdgeAI debs) ==="
     stage_debs
     compile_armbian ENABLE_EXTENSIONS=ti-debpkgs
 fi
 
 echo ""
-echo "=== Build complete ==="
+phase "=== Build complete ==="
 echo "Output image : $(ls -t output/images/*.img 2>/dev/null | head -1 || echo '(none)')"
 echo "Output debs  :"
 ls -lh output/debs/extra/*.deb 2>/dev/null || echo "  (none)"
