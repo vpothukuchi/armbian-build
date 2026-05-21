@@ -166,6 +166,21 @@ function pre_customize_image__install_ti_scripts() {
 		${SRC}/packages/bsp/ti/install_ros.sh \
 		${SDCARD}/opt/scripts/install_ros.sh"
 	display_alert "Installed TI scripts" "/opt/scripts/" "info"
+
+	# Install safe first-boot rootfs resize (avoids fdisk/partprobe hang on K3).
+	# armbian-resize-filesystem is masked because it uses fdisk which rewrites the
+	# MBR disk signature, invalidating PARTUUIDs and causing partprobe to deadlock.
+	# This replacement uses parted + partx (BLKPG ioctl) + resize2fs instead.
+	run_host_command_logged "install -m 755 \
+		${SRC}/packages/bsp/ti/ti-first-boot-resize.sh \
+		${SDCARD}/usr/local/sbin/ti-first-boot-resize.sh"
+	run_host_command_logged "install -m 644 \
+		${SRC}/packages/bsp/ti/ti-first-boot-resize.service \
+		${SDCARD}/etc/systemd/system/ti-first-boot-resize.service"
+	run_host_command_logged "ln -sf \
+		/etc/systemd/system/ti-first-boot-resize.service \
+		${SDCARD}/etc/systemd/system/sysinit.target.wants/ti-first-boot-resize.service"
+	display_alert "Installed safe first-boot resize service" "ti-first-boot-resize.service" "info"
 }
 
 function pre_customize_image__enable_services() {

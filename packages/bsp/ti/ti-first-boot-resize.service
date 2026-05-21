@@ -1,0 +1,17 @@
+[Unit]
+Description=TI Safe First-Boot Rootfs Expansion
+Documentation=file:///usr/local/sbin/ti-first-boot-resize.sh
+DefaultDependencies=no
+After=local-fs.target
+Before=sysinit.target
+ConditionPathExists=!/var/lib/ti-first-boot-resize-done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ti-first-boot-resize.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=sysinit.target
