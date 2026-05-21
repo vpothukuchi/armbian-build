@@ -119,14 +119,6 @@ EOF
 dns=default
 EOF
 
-	# Ubuntu Noble's /etc/resolv.conf is a symlink → systemd-resolved stub.
-	# Since we mask systemd-resolved, that stub never exists and DNS breaks.
-	# Replace the symlink with one pointing to NM's generated file so DNS
-	# works on first boot without systemd-resolved.
-	run_host_command_logged "rm -f ${SDCARD}/etc/resolv.conf"
-	run_host_command_logged "ln -sf /run/NetworkManager/resolv.conf ${SDCARD}/etc/resolv.conf"
-	display_alert "Replaced resolv.conf symlink" "→ /run/NetworkManager/resolv.conf" "info"
-
 	# Create a DHCP profile bound to eth0 — the J784S4 CPSW switch exposes
 	# eth2/eth3 as additional ethernet interfaces.  A generic type=ethernet
 	# profile without interface-name gets stolen by those switch ports before
@@ -286,6 +278,16 @@ function pre_umount_final_image__configure_uboot_rproc() {
             display_alert "Added vision-apps DTS overlay" "k3-j784s4-vision-apps.dtbo" "info"
         fi
     fi
+}
+
+function pre_umount_final_image__fix_resolv_conf() {
+    # The Armbian networking extension re-creates /etc/resolv.conf →
+    # /run/systemd/resolve/stub-resolv.conf AFTER pre_customize_image hooks run.
+    # Since systemd-resolved is masked, that stub never exists and DNS breaks.
+    # Running this fix in pre_umount_final_image guarantees it is the last word.
+    run_host_command_logged "rm -f ${SDCARD}/etc/resolv.conf"
+    run_host_command_logged "ln -sf /run/NetworkManager/resolv.conf ${SDCARD}/etc/resolv.conf"
+    display_alert "Fixed resolv.conf symlink (final)" "→ /run/NetworkManager/resolv.conf" "info"
 }
 
 function post_customize_image__aaa_ros2_setup() {
