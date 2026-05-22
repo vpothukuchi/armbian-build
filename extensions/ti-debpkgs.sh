@@ -77,6 +77,11 @@ function pre_customize_image__install_edgeai_debs() {
         run_host_command_logged mv "${src}.tmp_disabled" "${src}"
     done
 
+    # Hold the mesa packages that ti-img-pvr-mesa-wsi overwrites via Replaces:.
+    # Without this, 'apt upgrade' would restore Ubuntu's libgbm1/libegl-mesa0/
+    # libglapi-mesa over our PVR-patched versions.
+    chroot_sdcard "apt-mark hold libgbm1 libgbm-dev libegl-mesa0 libglapi-mesa" || true
+
     # Remove staged .deb files from /root/ — they were only needed for apt resolution
     display_alert "Cleaning up staged EdgeAI debs from /root/" "" "info"
     for deb in "${debs_in_chroot[@]}"; do

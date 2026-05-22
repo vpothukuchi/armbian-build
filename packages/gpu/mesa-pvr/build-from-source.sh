@@ -283,8 +283,7 @@ Architecture: arm64
 Maintainer: Texas Instruments <vijayp@ti.com>
 Depends: libglvnd0, libwayland-client0, libdrm2, libexpat1, libzstd1, libstdc++6
 Provides: libgbm1 (= ${PKG_VERSION}), libegl-mesa0 (= ${PKG_VERSION}), libglapi-mesa (= ${PKG_VERSION})
-Replaces: libgbm1, libegl-mesa0, libglapi-mesa
-Conflicts: libgbm1, libegl-mesa0, libglapi-mesa
+Replaces: libgbm1, libgbm-dev, libegl-mesa0, libglapi-mesa
 Description: Mesa 24.0.1 PowerVR GLVND EGL stack for TI SoCs
  Complete Mesa 24.0.1 GLVND EGL vendor stack with PowerVR DRI driver
  for the PowerVR Rogue GPU (j784s4/j721s2), built from TI's mesa-pvr
