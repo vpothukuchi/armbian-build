@@ -1,0 +1,87 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Vijay Pothukuchi <vijayp@ti.com>
+Date: Wed, 21 May 2026 00:00:00 +0000
+Subject: [PATCH] arm64: dts: ti: k3-j784s4: Use TI_SCI_PD_SHARED for display
+ chain power domains
+
+PSDK Analytics SYSFW (Fancy Rat, 11.02.x) assigns display resources to
+the R5/automotive host in its resource management configuration.  With
+TI_SCI_PD_EXCLUSIVE the A72 host fails the exclusive ownership check in
+U-Boot's TISCI power-domain fixup and the nodes are silently disabled in
+the in-memory FDT handed to Linux, even though the DTB file on disk has
+them enabled.
+
+Change TI_SCI_PD_EXCLUSIVE to TI_SCI_PD_SHARED for the entire display
+pipeline so U-Boot passes the nodes through to Linux.  Shared mode allows
+the A72 host to co-own the power domain without requiring SYSFW RM config
+changes.
+
+Power domains affected:
+  - PD 218: dss@4a00000        (TIDSS / TI Display Subsystem)
+  - PD 217: bridge@a000000     (MHDP/DP output bridge)
+  - PD 215: dsi@4800000        (DSI host controller)
+  - PD 402: phy@4480000        (DPHY TX, required by DSI)
+  - PD 274: i2c@2040000        (main_i2c4, carries exp4 TCA6408 GPIO
+                                expander that drives the DP0 power
+                                regulator and HPD GPIO)
+
+Without this change the deferred probe chain for TIDSS is broken at
+"regulator-dp0-prw: can't get GPIO" because exp4 never probes (its
+parent main_i2c4 is disabled at runtime by U-Boot), and no DRM device
+is registered for the display subsystem.
+
+Upstream-Status: Inappropriate [TI J784S4 EVM Armbian/Linux display enablement]
+
+Signed-off-by: Vijay Pothukuchi <vijayp@ti.com>
+---
+ arch/arm64/boot/dts/ti/k3-j784s4-j742s2-main-common.dtsi | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/ti/k3-j784s4-j742s2-main-common.dtsi b/arch/arm64/boot/dts/ti/k3-j784s4-j742s2-main-common.dtsi
+--- a/arch/arm64/boot/dts/ti/k3-j784s4-j742s2-main-common.dtsi
++++ b/arch/arm64/boot/dts/ti/k3-j784s4-j742s2-main-common.dtsi
+@@ -773,7 +773,7 @@
+ 		#size-cells = <0>;
+ 		clocks = <&k3_clks 274 2>;
+ 		clock-names = "fck";
+-		power-domains = <&k3_pds 274 TI_SCI_PD_EXCLUSIVE>;
++		power-domains = <&k3_pds 274 TI_SCI_PD_SHARED>;
+ 		status = "disabled";
+ 	};
+ 
+@@ -2553,7 +2553,7 @@
+ 		clocks = <&k3_clks 402 20>, <&k3_clks 402 3>;
+ 		clock-names = "psm", "pll_ref";
+ 		#phy-cells = <0>;
+-		power-domains = <&k3_pds 402 TI_SCI_PD_EXCLUSIVE>;
++		power-domains = <&k3_pds 402 TI_SCI_PD_SHARED>;
+ 		assigned-clocks = <&k3_clks 402 3>;
+ 		assigned-clock-parents = <&k3_clks 402 4>;
+ 		assigned-clock-rates = <19200000>;
+@@ -2565,7 +2565,7 @@
+ 		reg = <0x0 0x04800000 0x0 0x100000>, <0x0 0x04710000 0x0 0x100>;
+ 		clocks = <&k3_clks 215 2>, <&k3_clks 215 5>;
+ 		clock-names = "dsi_p_clk", "dsi_sys_clk";
+-		power-domains = <&k3_pds 215 TI_SCI_PD_EXCLUSIVE>;
++		power-domains = <&k3_pds 215 TI_SCI_PD_SHARED>;
+ 		interrupt-parent = <&gic500>;
+ 		interrupts = <GIC_SPI 600 IRQ_TYPE_LEVEL_HIGH>;
+ 		phys = <&dphy_tx0>;
+@@ -2599,7 +2599,7 @@
+ 		clocks = <&k3_clks 217 11>;
+ 		interrupt-parent = <&gic500>;
+ 		interrupts = <GIC_SPI 614 IRQ_TYPE_LEVEL_HIGH>;
+-		power-domains = <&k3_pds 217 TI_SCI_PD_EXCLUSIVE>;
++		power-domains = <&k3_pds 217 TI_SCI_PD_SHARED>;
+ 		status = "disabled";
+ 
+ 		dp0_ports: ports {
+@@ -2642,7 +2642,7 @@
+ 			 <&k3_clks 218 14>,
+ 			 <&k3_clks 218 18>;
+ 		clock-names = "fck", "vp1", "vp2", "vp3", "vp4";
+-		power-domains = <&k3_pds 218 TI_SCI_PD_EXCLUSIVE>;
++		power-domains = <&k3_pds 218 TI_SCI_PD_SHARED>;
+ 		interrupts = <GIC_SPI 602 IRQ_TYPE_LEVEL_HIGH>,
+ 			     <GIC_SPI 603 IRQ_TYPE_LEVEL_HIGH>,
+ 			     <GIC_SPI 604 IRQ_TYPE_LEVEL_HIGH>,

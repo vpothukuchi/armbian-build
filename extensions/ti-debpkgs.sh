@@ -96,6 +96,23 @@ function pre_customize_image__install_vision_apps_scripts() {
 	display_alert "Installed /opt/vision_apps/setup.sh" "" "info"
 }
 
+function pre_customize_image__install_cadence_firmware() {
+	# Install Cadence MHDP8546 DP bridge firmware from ti-linux-firmware.
+	# CONFIG_DRM_CDNS_MHDP8546=m means the driver loads at userspace init time
+	# (after rootfs is mounted), so the firmware must be present on the rootfs.
+	# It is NOT in mainline linux-firmware/armbian-firmware, only ti-linux-firmware.
+	local fw_src="${SRC}/cache/sources/ti-linux-firmware/cadence/mhdp8546.bin"
+	if [[ -f "${fw_src}" ]]; then
+		run_host_command_logged "mkdir -p ${SDCARD}/usr/lib/firmware/cadence"
+		run_host_command_logged "install -m 644 ${fw_src} \
+			${SDCARD}/usr/lib/firmware/cadence/mhdp8546.bin"
+		display_alert "Installed cadence/mhdp8546.bin" "MHDP DP bridge firmware" "info"
+	else
+		display_alert "WARNING: cadence/mhdp8546.bin not found at ${fw_src}" "" "wrn"
+		display_alert "  Run: fetch_from_repo ... ti-linux-firmware first" "" "wrn"
+	fi
+}
+
 function pre_customize_image__configure_networking() {
 	# Ubuntu Noble ships NetworkManager with a default policy in
 	# /usr/lib/NetworkManager/conf.d/10-globally-managed-devices.conf that
@@ -185,6 +202,10 @@ function pre_customize_image__enable_services() {
 		run_host_command_logged "cp -v $SRC/packages/bsp/ti/weston/weston.service ${SDCARD}/lib/systemd/system/weston.service"
 		run_host_command_logged "cp -v $SRC/packages/bsp/ti/weston/weston ${SDCARD}/etc/default/weston"
 		chroot_sdcard "systemctl enable weston" || display_alert "systemctl enable weston failed"
+		# Remove Armbian's first-login guard so weston starts on first boot.
+		# On this headless/SSH deployment the interactive first-login flow never
+		# runs, so the file would otherwise block weston indefinitely.
+		run_host_command_logged "rm -f ${SDCARD}/root/.not_logged_in_yet"
 	else
 		display_alert "weston binary not found; skipping weston service setup" "" "wrn"
 	fi
@@ -263,16 +284,24 @@ function pre_umount_final_image__configure_uboot_rproc() {
     # temp-rootfs source that was already rsynced to FAT before this hook
     # runs.  Writes must go to MOUNT/boot/uEnv.txt to persist in the image.
     #
-    # dorprocboot=1: U-Boot performs rproc init + TISCI ownership transfer
-    # before handing off to Linux.  Yocto uses dorprocboot=1; this ensures
-    # correct TISCI power/security state so Linux remoteproc can reliably
-    # start C7x DSP and R5F cores and their IPC endpoints work correctly.
+    # dorprocboot=0: skip U-Boot rproc init entirely.
+    #
+    # With dorprocboot=1, U-Boot calls "rproc init" then tries to load each
+    # core's firmware from the ext4 rootfs.  The ti-adas-firmware package
+    # installs the .out files under /lib/firmware/vision_apps_evm/ with
+    # symlinks at /lib/firmware/j784s4-*-fw.  U-Boot's ext4 driver cannot
+    # follow symlinks, so every load attempt prints "Failed to load" and the
+    # rproc init accomplishes nothing useful — TISCI ownership and firmware
+    # loading are handled correctly by the Linux kernel's ti_k3_*_remoteproc
+    # drivers when they probe.  dorprocboot=0 suppresses all those messages.
     local uenv="${MOUNT}/boot/uEnv.txt"
     if [[ -f "${uenv}" ]]; then
-        if ! grep -q "dorprocboot" "${uenv}"; then
-            echo "dorprocboot=1" >> "${uenv}"
-            display_alert "Enabled U-Boot remoteproc boot" "dorprocboot=1" "info"
+        if grep -q "dorprocboot" "${uenv}"; then
+            sed -i 's/dorprocboot=.*/dorprocboot=0/' "${uenv}"
+        else
+            echo "dorprocboot=0" >> "${uenv}"
         fi
+        display_alert "Disabled U-Boot remoteproc boot" "dorprocboot=0 (Linux handles TISCI+fw)" "info"
         if ! grep -q "name_overlays" "${uenv}"; then
             echo "name_overlays=ti/k3-j784s4-vision-apps.dtbo" >> "${uenv}"
             display_alert "Added vision-apps DTS overlay" "k3-j784s4-vision-apps.dtbo" "info"
@@ -284,9 +313,12 @@ function pre_umount_final_image__fix_resolv_conf() {
     # The Armbian networking extension re-creates /etc/resolv.conf →
     # /run/systemd/resolve/stub-resolv.conf AFTER pre_customize_image hooks run.
     # Since systemd-resolved is masked, that stub never exists and DNS breaks.
-    # Running this fix in pre_umount_final_image guarantees it is the last word.
-    run_host_command_logged "rm -f ${SDCARD}/etc/resolv.conf"
-    run_host_command_logged "ln -sf /run/NetworkManager/resolv.conf ${SDCARD}/etc/resolv.conf"
+    #
+    # IMPORTANT: pre_umount_final_image runs AFTER rsync($SDCARD → $MOUNT).
+    # Changes to $SDCARD at this stage are NOT reflected in the image.
+    # Must use $MOUNT (the mounted ext4 image partition) for all rootfs files.
+    run_host_command_logged "rm -f ${MOUNT}/etc/resolv.conf"
+    run_host_command_logged "ln -sf /run/NetworkManager/resolv.conf ${MOUNT}/etc/resolv.conf"
     display_alert "Fixed resolv.conf symlink (final)" "→ /run/NetworkManager/resolv.conf" "info"
 }
 

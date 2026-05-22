@@ -30,8 +30,6 @@ Before=graphical.target
 # for now.
 ConditionPathExists=/dev/tty0
 
-# Ensure that it doesn't run on 1st boot, since the setup process will kill it
-ConditionPathExists=!/root/.not_logged_in_yet
 
 [Service]
 # Requires systemd-notify.so Weston plugin.

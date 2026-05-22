@@ -1,4 +1,5 @@
 # Dockerfile — TI EdgeAI Debian Package Build Environment
+# Proxy support: pass --build-arg http_proxy=... at build time if needed.
 #
 # Base: ghcr.io/armbian/docker-armbian-build:armbian-ubuntu-noble-latest
 #   Ubuntu 24.04 Noble, already contains:
@@ -22,6 +23,22 @@ FROM ghcr.io/armbian/docker-armbian-build:armbian-ubuntu-noble-latest
 
 LABEL org.opencontainers.image.title="TI EdgeAI Build"
 LABEL org.opencontainers.image.description="Cross-compilation environment for TI EdgeAI Debian packages (aarch64)"
+
+# Proxy build args — passed via --build-arg at docker build time.
+# Docker BuildKit pre-defines http_proxy/https_proxy but declaring them
+# here makes them available as ENV for all subsequent RUN steps.
+ARG http_proxy
+ARG https_proxy
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ARG no_proxy
+ARG NO_PROXY
+ENV http_proxy=${http_proxy} \
+    https_proxy=${https_proxy} \
+    HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    no_proxy=${no_proxy} \
+    NO_PROXY=${NO_PROXY}
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -203,6 +220,12 @@ RUN mkdir -p /opt/arm64-sysroot/usr && \
         libvulkan-dev:arm64 \
         libwayland-dev:arm64 \
         libwayland-client0:arm64 \
+        libwayland-egl-backend-dev:arm64 \
+        \
+        # GLVND vendor ABI headers — required for mesa -Dglvnd=true.
+        # libglvnd-core-dev provides glvnd/libeglabi.h and libglvnd.pc
+        # so meson's dependency('libglvnd') resolves correctly.
+        libglvnd-core-dev:arm64 \
         \
         # libtinfo6 arm64 — libtinfo6:arm64 is pre-installed in this Docker image
         # (pulled in by the aarch64 cross-compile toolchain), so apt-get install -d

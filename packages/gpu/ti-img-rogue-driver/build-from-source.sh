@@ -144,10 +144,16 @@ Description: Kernel module for PowerVR Rogue GPU on TI SoCs (j784s4/j721s2)
  Source: git.ti.com/git/graphics/ti-img-rogue-driver.git @ ${SRCREV}
 EOF
 
-cat > "${PKGDIR}/DEBIAN/postinst" <<POSTINST
+cat > "${PKGDIR}/DEBIAN/postinst" <<'POSTINST'
 #!/bin/sh
 set -e
-depmod -a ${KERNEL_VER}
+# Regenerate module deps for every kernel version that has pvrsrvkm installed.
+# This covers the case where a kernel deb upgrade re-runs depmod first and
+# drops the out-of-tree pvrsrvkm.ko from modules.dep.
+for _ko in /lib/modules/*/updates/pvrsrvkm.ko; do
+    _kver=$(echo "$_ko" | cut -d/ -f4)
+    depmod -a "$_kver"
+done
 POSTINST
 chmod 0755 "${PKGDIR}/DEBIAN/postinst"
 

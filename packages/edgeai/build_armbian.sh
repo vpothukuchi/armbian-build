@@ -1,5 +1,7 @@
 #!/bin/bash
 # build_armbian.sh — Full build sequence for TI EdgeAI + Armbian on j784s4-evm
+# Phase marker — defined early so do_clean() and other pre-main code can use it.
+phase() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 #
 # This script lives at packages/edgeai/build_armbian.sh inside the armbian-build
 # repository.  It can be invoked from any working directory; it derives the repo
@@ -293,6 +295,15 @@ do_clean() {
     rm -f   "./packages/gpu/ti-img-rogue-umlibs"/*.deb
     rm -rf  "./packages/gpu/mesa-pvr/build" \
             "./packages/gpu/mesa-pvr/staging"
+    # src/mesa may contain root-owned pycache files from Docker builds; use Docker to remove
+    if docker image inspect ti-edgeai-build:noble &>/dev/null; then
+        docker run --rm \
+            -v "$(pwd)/packages/gpu/mesa-pvr:/workspace" \
+            ti-edgeai-build:noble \
+            bash -c "rm -rf /workspace/src" 2>/dev/null || true
+    else
+        rm -rf "./packages/gpu/mesa-pvr/src"
+    fi
     rm -f   "./packages/gpu/mesa-pvr"/*.deb
 
     echo "  Armbian output artifacts ..."
@@ -442,11 +453,6 @@ compile_armbian() {
 }
 
 # ---------------------------------------------------------------------------
-# Phase marker — always includes a timestamp for parse_build_log.py
-# ---------------------------------------------------------------------------
-phase() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
-
-# ---------------------------------------------------------------------------
 # Print planned sequence
 # ---------------------------------------------------------------------------
 echo ""
@@ -468,6 +474,17 @@ echo "  Mode: $([ "${USE_DOCKER}" -eq 1 ] && echo 'Docker' || echo 'No-Docker (U
 [[ -n "${FW_DIR}" ]]        && echo "  FW dir:      ${FW_DIR}"
 [[ -n "${SYSROOT}" ]]       && echo "  Sysroot:     ${SYSROOT}"
 echo ""
+
+# ---------------------------------------------------------------------------
+# Docker image — build ti-edgeai-build:noble if absent (needed for G1-G3, A1-A3, E1-E2)
+# ---------------------------------------------------------------------------
+if [[ "${USE_DOCKER}" -eq 1 ]] && { [[ "${SKIP_GPU}" -eq 0 ]] || [[ "${SKIP_EDGEAI}" -eq 0 ]]; }; then
+    if ! docker image inspect ti-edgeai-build:noble &>/dev/null; then
+        echo ""
+        phase "=== Docker: building ti-edgeai-build:noble ==="
+        "${DOCKER_BUILD}" --build-image-only $(base_docker_args)
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # B1 — Armbian base image (kernel + u-boot; no EdgeAI packages)
@@ -517,6 +534,12 @@ if [[ "${SKIP_GPU}" -eq 0 ]]; then
 
         echo ""
         phase "=== G3: ti-img-pvr-mesa-wsi ==="
+        # Remove root-owned artifacts (e.g. pycache files from previous Docker builds)
+        # before the user-mode build to prevent "Permission denied" rm failures.
+        docker run --rm \
+            -v "${ARMBIAN_ROOT}/packages/gpu/mesa-pvr:/workspace" \
+            ti-edgeai-build:noble \
+            bash -c "rm -rf /workspace/src /workspace/build /workspace/staging" 2>/dev/null || true
         docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
             -v "${ARMBIAN_ROOT}/packages/gpu/mesa-pvr:/workspace" \
             ti-edgeai-build:noble \

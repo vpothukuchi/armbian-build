@@ -137,6 +137,7 @@ IPK_DIR=""
 FW_DIR=""
 NO_CACHE=""
 DROP_SHELL=0
+BUILD_IMAGE_ONLY=0
 PREBUILT=0
 SKIP_SOURCE_BUILD=0
 TARGET=""
@@ -154,6 +155,7 @@ while [[ $# -gt 0 ]]; do
         --prebuilt)          PREBUILT=1;           shift ;;
         --skip-source-build) SKIP_SOURCE_BUILD=1;  shift ;;
         --no-cache)          NO_CACHE="--no-cache"; shift ;;
+        --build-image-only)  BUILD_IMAGE_ONLY=1;   shift ;;
         --shell)     DROP_SHELL=1;      shift ;;
         --image-tag) IMAGE_TAG="$2";    shift 2 ;;
         ti-rpmsg-char|ti-tidl-osrt|ti-tidl|ti-vision-apps|\
@@ -172,7 +174,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "${TARGET}" && "${DROP_SHELL}" -eq 0 ]]; then
+if [[ -z "${TARGET}" && "${DROP_SHELL}" -eq 0 && "${BUILD_IMAGE_ONLY}" -eq 0 ]]; then
     echo "Usage: $0 [OPTIONS] <PACKAGE|all>" >&2
     echo "  Packages: ti-rpmsg-char ti-tidl-osrt ti-vision-apps ti-tidl" >&2
     echo "            ti-adas-firmware" >&2
@@ -205,6 +207,12 @@ build_image() {
         info "Building Docker image ${IMAGE_NAME}:${IMAGE_TAG}..."
         # Build context is the docker/ subdirectory (Dockerfile only — no large files).
         docker build ${NO_CACHE} \
+            --build-arg http_proxy="${http_proxy:-${HTTP_PROXY:-}}" \
+            --build-arg https_proxy="${https_proxy:-${HTTPS_PROXY:-}}" \
+            --build-arg HTTP_PROXY="${HTTP_PROXY:-${http_proxy:-}}" \
+            --build-arg HTTPS_PROXY="${HTTPS_PROXY:-${https_proxy:-}}" \
+            --build-arg no_proxy="${no_proxy:-${NO_PROXY:-localhost,127.0.0.1}}" \
+            --build-arg NO_PROXY="${NO_PROXY:-${no_proxy:-localhost,127.0.0.1}}" \
             -t "${IMAGE_NAME}:${IMAGE_TAG}" \
             -f "${dockerfile}" \
             "${SCRIPT_DIR}/docker"
@@ -659,6 +667,10 @@ show_output() {
 # Main
 # ---------------------------------------------------------------------------
 build_image
+
+if [[ "${BUILD_IMAGE_ONLY}" -eq 1 ]]; then
+    exit 0
+fi
 
 if [[ "${DROP_SHELL}" -eq 1 ]]; then
     drop_shell
