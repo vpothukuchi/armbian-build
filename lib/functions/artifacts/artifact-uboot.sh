@@ -47,7 +47,12 @@ function artifact_uboot_prepare_version() {
 	fi
 
 	declare -A GIT_INFO_UBOOT=([GIT_SOURCE]="${BOOTSOURCE}" [GIT_REF]="${BOOTBRANCH}")
-	memoize_cache_ttl=$uboot_git_cache_ttl_seconds run_memoized GIT_INFO_UBOOT "git2info" memoized_git_ref_to_info "include_makefile_body"
+	if [[ "${UBOOT_SKIP_MAKEFILE_VERSION:-"no"}" == "yes" ]]; then
+		display_alert "Skipping Makefile version for u-boot" "due to UBOOT_SKIP_MAKEFILE_VERSION=yes" "info"
+		memoize_cache_ttl=$uboot_git_cache_ttl_seconds run_memoized GIT_INFO_UBOOT "git2info" memoized_git_ref_to_info
+	else
+		memoize_cache_ttl=$uboot_git_cache_ttl_seconds run_memoized GIT_INFO_UBOOT "git2info" memoized_git_ref_to_info "include_makefile_body"
+	fi
 	debug_dict GIT_INFO_UBOOT
 
 	# Sanity check, the SHA1 gotta be sane.
@@ -122,7 +127,11 @@ function artifact_uboot_prepare_version() {
 	declare bash_hash_short="${bash_hash:0:${short_hash_size}}"
 
 	# outer scope
-	artifact_version="${GIT_INFO_UBOOT[MAKEFILE_VERSION]}-S${short_sha1}-P${uboot_patches_hash_short}-H${hash_hooks_and_functions_short}-V${var_config_hash_short}-B${bash_hash_short}"
+	if [[ "${UBOOT_SKIP_MAKEFILE_VERSION:-"no"}" == "yes" ]]; then
+		artifact_version="1-S${short_sha1}-P${uboot_patches_hash_short}-H${hash_hooks_and_functions_short}-V${var_config_hash_short}-B${bash_hash_short}"
+	else
+		artifact_version="${GIT_INFO_UBOOT[MAKEFILE_VERSION]}-S${short_sha1}-P${uboot_patches_hash_short}-H${hash_hooks_and_functions_short}-V${var_config_hash_short}-B${bash_hash_short}"
+	fi
 
 	declare -a reasons=(
 		"version \"${GIT_INFO_UBOOT[MAKEFILE_FULL_VERSION]}\""

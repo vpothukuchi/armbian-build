@@ -36,7 +36,9 @@ if [[ "${DISPLAY_SUPPORT}" == "yes" ]] ; then
 fi
 
 if [[ "${BOOT_SOC}" != "am62l" ]]; then
-	TI_PACKAGES+=("firmware-ti-ipc-${SOC_ID}")
+	# Only add IPC firmware when SOC_ID is set; pre-silicon targets (e.g. tda54)
+	# may not have a corresponding firmware package yet.
+	[[ -n "${SOC_ID}" ]] && TI_PACKAGES+=("firmware-ti-ipc-${SOC_ID}")
 else
 	TI_PACKAGES+=("ti-lvgl-demo")
 fi
@@ -93,7 +95,10 @@ function compile_k3_bootgen() {
 }
 
 function compile_k3_optee() {
-	(fetch_from_repo "https://github.com/OP-TEE/optee_os.git" "optee-os" ${OPTEE_BRANCH})
+	# OPTEE_SOURCE may be overridden per-family (e.g. k3-tda54 uses a private
+	# TI Bitbucket fork); fall back to the public upstream OP-TEE repo.
+	local optee_repo="${OPTEE_SOURCE:-https://github.com/OP-TEE/optee_os.git}"
+	(fetch_from_repo "${optee_repo}" "optee-os" ${OPTEE_BRANCH})
 	pushd ${SRC}/cache/sources/optee-os || exit
 	run_host_command_logged make -j$(nproc) CROSS_COMPILE=arm-linux-gnueabihf- CFG_ARM64_core=y PLATFORM=${OPTEE_PLATFORM} ${OPTEE_ARGS}
 	popd
