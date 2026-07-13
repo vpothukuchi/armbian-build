@@ -133,7 +133,7 @@ function post_create_partitions() {
 	run_host_command_logged parted "${SDCARD}".raw set 1 bls_boot off
 }
 
-function format_partitions() {
+function format_partitions__k3_set_partition_type() {
 	# ROM is very particular about partition IDs
 	run_host_command_logged sfdisk --part-type ${LOOP} 1 e
 }
